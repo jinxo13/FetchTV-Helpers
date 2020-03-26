@@ -6,7 +6,7 @@ I just got my FetchTV and I expected to be able to cast or view recordings on my
 Alas this was not to be.
 
 My workaround is to save the recordings to another filesystem accessible by Plex.
-Then use Plex to view cast etc...
+Then use Plex to view, cast etc...
 
 ### Functions:
 - Autodiscover FetchTV DLNA server
