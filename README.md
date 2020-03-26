@@ -29,7 +29,7 @@ fetchtv_upnp.py --recordings
 -->  Returns the list of all recordings
 
 fetchtv_upnp.py --recordings --save=<path>
--->  Saves recordings to the specified path, if they haven't already been copied
+-->  Saves all recordings to the specified path, if they haven't already been copied
 
 fetchtv_upnp.py --recordings --folder='2 Broke Girls' --save=<path>
 -->  Saves recordings for the specified folder to the specified path, if they haven't already been copied

@@ -345,7 +345,7 @@ def show_help():
     print('\t\t -->  Returns the list of all recordings')
     print('')
     print('\t\t fetchtv_upnp.py --recordings --save=<path>')
-    print('\t\t -->  Saves recordings to the specified path, if they haven\'t already been copied')
+    print('\t\t -->  Saves all recordings to the specified path, if they haven\'t already been copied')
     print('')
     print('\t\t fetchtv_upnp.py --recordings --folder=\'2 Broke Girls\' --save=<path>')
     print('\t\t -->  Saves recordings for the specified folder to the specified path, if they haven\'t already been copied')
