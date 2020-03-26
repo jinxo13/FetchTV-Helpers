@@ -320,20 +320,20 @@ def discover_fetch(ip=False, port=49152):
 
 def show_help():
     print('Usage:')
-    print('\t\t fetch_upnp.py --help')
+    print('\t\t fetchtv_upnp.py --help')
     print('\t\t --> Displays this help')
     print('')
-    print('\t\t fetch_upnp.py --info')
+    print('\t\t fetchtv_upnp.py --info')
     print('\t\t -->  Attempts auto-discovery and returns the Fetch Servers details')
     print('')
-    print('\t\t fetch_upnp.py --ip=192.168.1.100 --port=49152')
+    print('\t\t fetchtv_upnp.py --ip=192.168.1.100 --port=49152')
     print('\t\t --> Returns the Fetch Servers details for the specified ip/port')
     print('')
-    print('\t\t fetch_upnp.py --recordings')
-    print('\t\t -->  Returns the recording folders for the specified ip/port')
+    print('\t\t fetchtv_upnp.py --recordings')
+    print('\t\t -->  Returns the list of all recordings')
     print('')
-    print('\t\t fetch_upnp.py --recordings --save=<path>')
-    print('\t\t -->  Saves recordings to the specified path, and tracks which ones have been done')
+    print('\t\t fetchtv_upnp.py --recordings --save=<path>')
+    print('\t\t -->  Saves recordings to the specified path, if they haven\'t already been copied')
 
 def save_recordings(options, recordings):
     saved_files = SavedFiles()
