@@ -17,7 +17,7 @@ Then use Plex to view, cast etc...
 ### Usage:
 ```
 fetchtv_upnp.py --help
---> Displays this help
+ --> Displays this help
 
 fetchtv_upnp.py --info
 -->  Attempts auto-discovery and returns the Fetch Servers details
@@ -30,4 +30,6 @@ fetchtv_upnp.py --recordings
 
 fetchtv_upnp.py --recordings --save=<path>
 -->  Saves recordings to the specified path, if they haven't already been copied
-```
+
+fetchtv_upnp.py --recordings --folder='2 Broke Girls' --save=<path>
+-->  Saves recordings for the specified folder to the specified path, if they haven't already been copied
