@@ -17,7 +17,7 @@ try:
 except ImportError:
     from urllib.parse import urlparse
 
-class SavedFiles(object):
+class SavedFiles:
     def __init__(self):
         self.__files = {}
 
@@ -26,7 +26,6 @@ class SavedFiles(object):
 
     def contains(self, item):
         return item.id in self.__files.keys()
-
 
 class Location:
     BASE_PATH = "./{urn:schemas-upnp-org:device-1-0}device/{urn:schemas-upnp-org:device-1-0}"
@@ -60,13 +59,21 @@ class Item:
 class Options:
     def __init__(self, argv):
         self.__dict = dict()
-        options = ['help','ip','port','recordings','info','save']
+        options = ['help','ip','port','recordings','info','save','folder']
         for opt in options:
             val = next((arg for arg in argv if arg.startswith('--'+opt)), False)
             if val:
                 val = val.split('=')
                 val = True if len(val) == 1 else val[1]
             self.__dict[opt] = val
+        
+        if self.save and self.save.endswith(os.path.sep):
+            self.__dict['save'] = self.save.rstrip(os.path.sep)
+
+        if self.folder:
+            self.__dict['folder'] = self.folder.replace('"','')
+
+
     @property
     def help(self): return self.__dict['help']
     @property
@@ -79,6 +86,8 @@ class Options:
     def recordings(self): return self.__dict['recordings']
     @property
     def save(self): return self.__dict['save']
+    @property
+    def folder(self): return self.__dict['folder']
 
 def download_file(url, local_filename):
     # NOTE the stream=True parameter below
@@ -158,7 +167,7 @@ def parse_locations(locations):
                 pass
     return result
 
-def get_fetch_recordings(location):
+def get_fetch_recordings(location, folder=False):
     try:
         parsed = urlparse(location.url)
         resp = requests.get(location.url, timeout=2)
@@ -200,6 +209,9 @@ def get_fetch_recordings(location):
         if recording:
             recordings = find_directories(cd_ctr, cd_service, recording.id)
             for recording in recordings:
+                #Skip not matching folders
+                if folder and folder.lower() != recording.title.lower():
+                    continue
                 print('\t -- ' + recording.title)
                 for item in recording.items:
                     print('\t\t -- '+item.title+' (%s)' % item.url)
@@ -334,18 +346,24 @@ def show_help():
     print('')
     print('\t\t fetchtv_upnp.py --recordings --save=<path>')
     print('\t\t -->  Saves recordings to the specified path, if they haven\'t already been copied')
+    print('')
+    print('\t\t fetchtv_upnp.py --recordings --folder="2 Broke Girls" --save=<path>')
+    print('\t\t -->  Saves recordings to the specified path, if they haven\'t already been copied')
 
-def save_recordings(options, recordings):
+def save_recordings(recordings, path, folder):
     saved_files = SavedFiles()
-    with open(options.save + os.path.sep + "save_list.json", "a+") as read_file:
+    with open(path + os.path.sep + "save_list.json", "a+") as read_file:
         read_file.seek(0)
         content = read_file.read()
         if content:
             saved_files = jsonpickle.loads(content)
     for show in recordings:
+        if folder and folder.lower() != show.title.lower():
+            continue
+
         for item in show.items:
             if not saved_files.contains(item):
-                directory = options.save + os.path.sep + show.title.replace(' ', '_')
+                directory = path + os.path.sep + show.title.replace(' ', '_')
                 if not os.path.exists(directory):
                     try:
                         os.makedirs(directory)
@@ -359,7 +377,7 @@ def save_recordings(options, recordings):
                 saved_files.add_file(item)
     
                 #Save after each success
-                with open(options.save + os.path.sep + "save_list.json", "w") as write_file:
+                with open(path + os.path.sep + "save_list.json", "w") as write_file:
                     write_file.write(jsonpickle.dumps(saved_files))
 
 ###
@@ -384,11 +402,11 @@ def main(argv):
 
     if options.recordings:
         print('[+] List Recordings:')
-        recordings = get_fetch_recordings(fetch_server)
+        recordings = get_fetch_recordings(fetch_server, options.folder)
 
     if options.recordings and options.save:
         print('[+] Saving Recordings:')
-        save_recordings(options, recordings)
+        save_recordings(recordings, options.save, options.folder)
 
     print("[+] Done")
 
