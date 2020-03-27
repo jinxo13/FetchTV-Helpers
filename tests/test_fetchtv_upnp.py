@@ -35,3 +35,6 @@ class TestUpnp(unittest.TestCase):
 
     def test_show_save(self):
         fetchtv.main(['--ip=192.168.1.147', '--port=49152', '--folder="2 Broke Girls"', '--recordings', '--save=c:\\temp'])
+
+    def test_valid_filename(self):
+        self.assertEqual(fetchtv.create_valid_filename('my:file'), 'myfile')

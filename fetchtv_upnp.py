@@ -3,6 +3,7 @@ import os
 import errno
 import re
 import sys
+import string
 import time
 import base64
 import struct
@@ -100,15 +101,19 @@ class Options:
     @property
     def folder(self): return self.__dict['folder']
 
+def create_valid_filename(filename):
+    result = filename
+    for c in '<>:"/\\|?*':
+        result = result.replace(c,'')
+    return result
+
 def download_file(url, local_filename):
-    # NOTE the stream=True parameter below
     with requests.get(url, stream=True) as r:
         r.raise_for_status()
         with open(local_filename, 'wb') as f:
             for chunk in r.iter_content(chunk_size=8192): 
                 if chunk: # filter out keep-alive new chunks
                     f.write(chunk)
-                    # f.flush()
     return local_filename
 
 ###
@@ -365,13 +370,13 @@ def save_recordings(recordings, path, folder):
                 print('\t -- Skipping recording item: [%s - %s]' % (show.title, item.title))
                 continue
             if not saved_files.contains(item):
-                directory = path + os.path.sep + show.title.replace(' ', '_')
+                directory = path + os.path.sep + create_valid_filename(show.title.replace(' ', '_'))
                 if not os.path.exists(directory):
                     try:
                         os.makedirs(directory)
                     except OSError:
                         pass                        
-                file_path = directory + os.path.sep + item.title.replace(' ', '_') + '.mpeg'
+                file_path = directory + os.path.sep + create_valid_filename(item.title.replace(' ', '_')) + '.mpeg'
                 print('\t -- Writing: [%s] to [%s]' % (item.title, file_path))
                 download_file(item.url, file_path)
                 saved_files.add_file(item)
