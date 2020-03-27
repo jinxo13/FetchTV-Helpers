@@ -49,8 +49,10 @@ class Folder:
         self.items = [itm for itm in items]
 
 class Item:
+    MAX_OCTET=4398046510080
     @property
-    def is_recording(self): return self.size == -1
+    def is_recording(self):
+        return self.content_length == Item.MAX_OCTET
     def __init__(self, xml):
         self.type = xml.find("./{urn:schemas-upnp-org:metadata-1-0/upnp/}class").text
         self.title = xml.find("./{http://purl.org/dc/elements/1.1/}title").text
@@ -58,6 +60,12 @@ class Item:
         self.description = xml.find("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}description").text
         self.url = xml.find("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}res").text
         self.size = int(xml.find("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}res").attrib['size'])
+        self.content_length = 0
+
+        with requests.get(self.url, stream=True) as r:
+            r.raise_for_status()
+            if 'CONTENT-LENGTH' in r.headers:
+                self.content_length = int(r.headers['CONTENT-LENGTH'])
 
 class Options:
     def __init__(self, argv):
@@ -171,63 +179,54 @@ def parse_locations(locations):
     return result
 
 def get_fetch_recordings(location, folder=False):
+    parsed = urlparse(location.url)
+    resp = requests.get(location.url, timeout=2)
     try:
-        parsed = urlparse(location.url)
-        resp = requests.get(location.url, timeout=2)
-        try:
-            xmlRoot = ET.fromstring(resp.text)
-        except:
-            print('\t[!] Failed XML parsing of %s' % location.url)
-            return
-        cd_ctr = ''
-        cd_service = ''
+        xmlRoot = ET.fromstring(resp.text)
+    except:
+        print('\t[!] Failed XML parsing of %s' % location.url)
+        return
+    cd_ctr = ''
+    cd_service = ''
 
-        print('\t-> Services:')
-        services = xmlRoot.findall(".//*{urn:schemas-upnp-org:device-1-0}serviceList/")
-        for service in services:
-            # Add a lead in '/' if it doesn't exist
-            scp = service.find('./{urn:schemas-upnp-org:device-1-0}SCPDURL').text
-            if scp[0] != '/':
-                scp = '/' + scp
-            serviceURL = parsed.scheme + "://" + parsed.netloc + scp
+    print('\t-> Services:')
+    services = xmlRoot.findall(".//*{urn:schemas-upnp-org:device-1-0}serviceList/")
+    for service in services:
+        # Add a lead in '/' if it doesn't exist
+        scp = service.find('./{urn:schemas-upnp-org:device-1-0}SCPDURL').text
+        if scp[0] != '/':
+            scp = '/' + scp
+        serviceURL = parsed.scheme + "://" + parsed.netloc + scp
 
-            # read in the SCP XML
-            resp = requests.get(serviceURL, timeout=2)
-            try:
-                serviceXML = ET.fromstring(resp.text)
-            except:
-                print('\t\t\t[!] Failed to parse the response XML')
+        # read in the SCP XML
+        resp = requests.get(serviceURL, timeout=2)
+        serviceXML = ET.fromstring(resp.text)
+
+        actions = serviceXML.findall(".//*{urn:schemas-upnp-org:service-1-0}action")
+        for action in actions:
+            if action.find('./{urn:schemas-upnp-org:service-1-0}name').text == 'Browse':
+                print('\t\t=> API: %s' % serviceURL)
+                cd_ctr = parsed.scheme + "://" + parsed.netloc + service.find('./{urn:schemas-upnp-org:device-1-0}controlURL').text
+                cd_service = service.find('./{urn:schemas-upnp-org:device-1-0}serviceType').text
+                break
+
+    base_folders = find_directories(cd_ctr, cd_service)
+    recording = next((folder for folder in base_folders if folder.title == 'Recordings'), False)
+    if recording:
+        recordings = find_directories(cd_ctr, cd_service, recording.id)
+        for recording in recordings:
+            #Skip not matching folders
+            if folder and folder.lower() != recording.title.lower():
                 continue
+            print('\t -- ' + recording.title)
+            for item in recording.items:
+                if item.is_recording:
+                    print('\t\t -- (Recording) '+item.title+' (%s)' % item.url)
+                else:
+                    print('\t\t -- '+item.title+' (%s)' % item.url)
+        return recordings
+    return False
 
-            actions = serviceXML.findall(".//*{urn:schemas-upnp-org:service-1-0}action")
-            for action in actions:
-                if action.find('./{urn:schemas-upnp-org:service-1-0}name').text == 'Browse':
-                    print('\t\t=> API: %s' % serviceURL)
-                    cd_ctr = parsed.scheme + "://" + parsed.netloc + service.find('./{urn:schemas-upnp-org:device-1-0}controlURL').text
-                    cd_service = service.find('./{urn:schemas-upnp-org:device-1-0}serviceType').text
-                    break
-
-        base_folders = find_directories(cd_ctr, cd_service)
-        recording = next((folder for folder in base_folders if folder.title == 'Recordings'), False)
-        if recording:
-            recordings = find_directories(cd_ctr, cd_service, recording.id)
-            for recording in recordings:
-                #Skip not matching folders
-                if folder and folder.lower() != recording.title.lower():
-                    continue
-                print('\t -- ' + recording.title)
-                for item in recording.items:
-                    if item.is_recording:
-                        print('\t\t -- (Recording) '+item.title+' (%s)' % item.url)
-                    else:
-                        print('\t\t -- '+item.title+' (%s)' % item.url)
-            return recordings
-        return False
-
-    except requests.exceptions.ConnectionError:
-        print('[!] Could not load %s' % location)
-    except requests.exceptions.ReadTimeout:
-        print('[!] Timeout reading from %s' % location)
 
 ###
 # Send a 'Browse' request for the top level directory. We will print out the
@@ -260,21 +259,18 @@ def find_directories(p_url, p_service, object_id='0'):
         print('\t\tRequest failed with status: %d' % resp.status_code)
         return
 
-    try:
-        xmlRoot = ET.fromstring(resp.text)
-        containers = xmlRoot.find(".//*Result").text
-        if not containers:
-            return
+    xmlRoot = ET.fromstring(resp.text)
+    containers = xmlRoot.find(".//*Result").text
+    if not containers:
+        return
 
-        xmlRoot = ET.fromstring(containers)
-        containers = xmlRoot.findall("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}container")
-        for container in containers:
-            if container.find("./{urn:schemas-upnp-org:metadata-1-0/upnp/}class").text.find("object.container") > -1:
-                folder = Folder(container)
-                result.append(folder)
-                folder.add_items(find_items(p_url, p_service, container.attrib['id']))
-    except:
-        print('\t\t[!] Failed to parse the response XML')
+    xmlRoot = ET.fromstring(containers)
+    containers = xmlRoot.findall("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}container")
+    for container in containers:
+        if container.find("./{urn:schemas-upnp-org:metadata-1-0/upnp/}class").text.find("object.container") > -1:
+            folder = Folder(container)
+            result.append(folder)
+            folder.add_items(find_items(p_url, p_service, container.attrib['id']))
     return result
 
 ###
@@ -306,22 +302,19 @@ def find_items(p_url, p_service, object_id):
     resp = requests.post(p_url, data=payload, headers=soapActionHeader)
     if resp.status_code != 200:
         print('\t\tRequest failed with status: %d' % resp.status_code)
-        return
-
-    try:
-        xmlRoot = ET.fromstring(resp.text)
-        containers = xmlRoot.find(".//*Result").text
-        if not containers:
-            return result
-
-        xmlRoot = ET.fromstring(containers)
-        items = xmlRoot.findall("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}item")
-        for item in items:
-            itm = Item(item)
-            result.append(itm)
         return result
-    except:
-        print('\t\t\t[!] Failed to parse the response XML')
+
+    xmlRoot = ET.fromstring(resp.text)
+    containers = xmlRoot.find(".//*Result").text
+    if not containers:
+        return result
+
+    xmlRoot = ET.fromstring(containers)
+    items = xmlRoot.findall("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}item")
+    for item in items:
+        itm = Item(item)
+        result.append(itm)
+    return result   
 
 def discover_fetch(ip=False, port=49152):
     location_urls = discover_pnp_locations() if not ip else ['http://%s:%i/MediaServer.xml' % (ip, port)]
@@ -369,7 +362,7 @@ def save_recordings(recordings, path, folder):
 
         for item in show.items:
             if item.is_recording:
-                print('\t -- Skipping recording item: [%s]' % item.title)
+                print('\t -- Skipping recording item: [%s - %s]' % (show.title, item.title))
                 continue
             if not saved_files.contains(item):
                 directory = path + os.path.sep + show.title.replace(' ', '_')
