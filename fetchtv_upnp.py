@@ -49,12 +49,15 @@ class Folder:
         self.items = [itm for itm in items]
 
 class Item:
+    @property
+    def is_recording(self): return self.size == -1
     def __init__(self, xml):
         self.type = xml.find("./{urn:schemas-upnp-org:metadata-1-0/upnp/}class").text
         self.title = xml.find("./{http://purl.org/dc/elements/1.1/}title").text
         self.id = xml.attrib['id']
         self.description = xml.find("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}description").text
         self.url = xml.find("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}res").text
+        self.size = int(xml.find("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}res").attrib['size'])
 
 class Options:
     def __init__(self, argv):
@@ -214,7 +217,10 @@ def get_fetch_recordings(location, folder=False):
                     continue
                 print('\t -- ' + recording.title)
                 for item in recording.items:
-                    print('\t\t -- '+item.title+' (%s)' % item.url)
+                    if item.is_recording:
+                        print('\t\t -- (Recording) '+item.title+' (%s)' % item.url)
+                    else:
+                        print('\t\t -- '+item.title+' (%s)' % item.url)
             return recordings
         return False
 
@@ -362,14 +368,15 @@ def save_recordings(recordings, path, folder):
             continue
 
         for item in show.items:
+            if item.is_recording:
+                print('\t -- Skipping recording item: [%s]' % item.title)
+                continue
             if not saved_files.contains(item):
                 directory = path + os.path.sep + show.title.replace(' ', '_')
                 if not os.path.exists(directory):
                     try:
                         os.makedirs(directory)
-                    except OSError as exc:
-                        if exc.errno != errno.EEXIST:
-                            raise
+                    except OSError:
                         pass                        
                 file_path = directory + os.path.sep + item.title.replace(' ', '_') + '.mpeg'
                 print('\t -- Writing: [%s] to [%s]' % (item.title, file_path))
