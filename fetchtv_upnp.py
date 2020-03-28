@@ -115,17 +115,16 @@ def download_file(url, local_filename):
                 if chunk: # filter out keep-alive new chunks
                     f.write(chunk)
         os.rename(local_filename+'.lock', local_filename)
-    return local_filename
 
-###
-# Send a multicast message tell all the pnp services that we are looking
-# For them. Keep listening for responses until we hit a 3 second timeout (yes,
-# this could technically cause an infinite loop). Parse the URL out of the
-# 'location' field in the HTTP header and store for later analysis.
-#
-# @return the set of advertised upnp locations
-###
 def discover_pnp_locations():
+    '''
+    Send a multicast message tell all the pnp services that we are looking
+    For them. Keep listening for responses until we hit a 3 second timeout (yes,
+    this could technically cause an infinite loop). Parse the URL out of the
+    'location' field in the HTTP header and store for later analysis.
+    
+    @return the set of advertised upnp locations
+    '''
     locations = set()
     location_regex = re.compile("location:[ ]*(.+)\r\n", re.IGNORECASE)
     ssdpDiscover = ('M-SEARCH * HTTP/1.1\r\n' +
@@ -155,14 +154,14 @@ def get_attribute(xml, xml_name, default=''):
     except AttributeError:
         return default
 
-###
-# Loads the XML at each location and prints out the API along with some other
-# interesting data.
-#
-# @param locations a collection of URLs
-# @return igd_ctr (the control address) and igd_service (the service type)
-###
 def parse_locations(locations):
+    '''
+    Loads the XML at each location and prints out the API along with some other
+    interesting data.
+    
+    @param locations a collection of URLs
+    @return igd_ctr (the control address) and igd_service (the service type)
+    '''
     result = []
     if len(locations) > 0:
         for location in locations:
@@ -177,11 +176,9 @@ def parse_locations(locations):
                 result.append(loc)
 
             except requests.exceptions.ConnectionError:
-                #print('[!] Could not load %s' % location)
-                pass
+                print('[!] Could not load %s' % location)
             except requests.exceptions.ReadTimeout:
-                #print('[!] Timeout reading from %s' % location)
-                pass
+                print('[!] Timeout reading from %s' % location)
     return result
 
 def get_fetch_recordings(location, folder=False):
@@ -234,14 +231,14 @@ def get_fetch_recordings(location, folder=False):
     return False
 
 
-###
-# Send a 'Browse' request for the top level directory. We will print out the
-# top level containers that we observer. I've limited the count to 10.
-#
-# @param p_url the url to send the SOAPAction to
-# @param p_service the service in charge of this control URI
-###
 def find_directories(p_url, p_service, object_id='0'):
+    '''
+    Send a 'Browse' request for the top level directory. We will print out the
+    top level containers that we observer. I've limited the count to 10.
+    
+    @param p_url the url to send the SOAPAction to
+    @param p_service the service in charge of this control URI
+    '''
     result = []
     payload = ('<?xml version="1.0" encoding="utf-8" standalone="yes"?>' +
                '<s:Envelope s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">' +
@@ -279,13 +276,6 @@ def find_directories(p_url, p_service, object_id='0'):
             folder.add_items(find_items(p_url, p_service, container.attrib['id']))
     return result
 
-###
-# Send a 'Browse' request for the top level directory. We will print out the
-# top level containers that we observer. I've limited the count to 10.
-#
-# @param p_url the url to send the SOAPAction to
-# @param p_service the service in charge of this control URI
-###
 def find_items(p_url, p_service, object_id):
     result = []
     payload = ('<?xml version="1.0" encoding="utf-8" standalone="yes"?>' +
@@ -393,12 +383,8 @@ def save_recordings(recordings, path, folder):
                 with open(path + os.path.sep + "save_list.json", "w") as write_file:
                     write_file.write(jsonpickle.dumps(saved_files))
 
-###
-# Discover upnp services on the LAN and print out information needed to
-# investigate them further. Also prints out port mapping information if it
-# exists
-###
 def main(argv):
+    #TODO replace with argparse.ArgumentParser()
     options = Options(argv)
     if options.help:
         show_help()
