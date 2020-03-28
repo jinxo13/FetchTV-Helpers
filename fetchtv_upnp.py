@@ -110,10 +110,11 @@ def create_valid_filename(filename):
 def download_file(url, local_filename):
     with requests.get(url, stream=True) as r:
         r.raise_for_status()
-        with open(local_filename, 'wb') as f:
+        with open(local_filename+'.lock', 'wb') as f:
             for chunk in r.iter_content(chunk_size=8192): 
                 if chunk: # filter out keep-alive new chunks
                     f.write(chunk)
+        os.rename(local_filename+'.lock', local_filename)
     return local_filename
 
 ###
@@ -377,6 +378,13 @@ def save_recordings(recordings, path, folder):
                     except OSError:
                         pass                        
                 file_path = directory + os.path.sep + create_valid_filename(item.title.replace(' ', '_')) + '.mpeg'
+                
+                #Check if already writing
+                lock_file = file_path+'.lock'
+                if os.path.exists(lock_file):
+                    print('\t -- Already writing (lock file exists) skipping: [%s]' % item.title)
+                    continue
+                    
                 print('\t -- Writing: [%s] to [%s]' % (item.title, file_path))
                 download_file(item.url, file_path)
                 saved_files.add_file(item)
