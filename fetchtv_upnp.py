@@ -18,12 +18,39 @@ try:
 except ImportError:
     from urllib.parse import urlparse
 
+SAVE_FILE = "fetchtv_save_list.json"
+
 class SavedFiles:
+    '''
+    FetchTV recorded items that have already been saved
+    Serilised to and from JSON
+    '''
+
+    @staticmethod
+    def load(path):
+        '''
+        Instantiate from JSON file, if it exists
+        '''
+        with open(path + os.path.sep + SAVE_FILE, "a+") as read_file:
+            read_file.seek(0)
+            content = read_file.read()
+            inst = jsonpickle.loads(content) if content else SavedFiles()
+            inst.path = path
+            return inst
+
+    @property
+    def path(self):
+        return self.__path
+
     def __init__(self):
         self.__files = {}
+        self.__path = False
 
     def add_file(self, item):
         self.__files[item.id] = item.title
+        #Serialise after each success
+        with open(self.path + os.path.sep + SAVE_FILE, "w") as write_file:
+            write_file.write(jsonpickle.dumps(self))
 
     def contains(self, item):
         return item.id in self.__files.keys()
@@ -32,18 +59,19 @@ class Location:
     BASE_PATH = "./{urn:schemas-upnp-org:device-1-0}device/{urn:schemas-upnp-org:device-1-0}"
     def __init__(self, url, xml):
         self.url = url
-        self.deviceType = get_attribute(xml, Location.BASE_PATH + "deviceType")
-        self.friendlyName = get_attribute(xml, Location.BASE_PATH + "friendlyName")
-        self.manufacturer = get_attribute(xml, Location.BASE_PATH + "manufacturer")
-        self.manufacturerURL = get_attribute(xml, Location.BASE_PATH + "manufacturerURL")
-        self.modelDescription = get_attribute(xml, Location.BASE_PATH + "modelDescription")
-        self.modelName = get_attribute(xml, Location.BASE_PATH + "modelName")
-        self.modelNumber = get_attribute(xml, Location.BASE_PATH + "modelNumber")
+        self.deviceType = get_xml_text(xml, Location.BASE_PATH + "deviceType")
+        self.friendlyName = get_xml_text(xml, Location.BASE_PATH + "friendlyName")
+        self.manufacturer = get_xml_text(xml, Location.BASE_PATH + "manufacturer")
+        self.manufacturerURL = get_xml_text(xml, Location.BASE_PATH + "manufacturerURL")
+        self.modelDescription = get_xml_text(xml, Location.BASE_PATH + "modelDescription")
+        self.modelName = get_xml_text(xml, Location.BASE_PATH + "modelName")
+        self.modelNumber = get_xml_text(xml, Location.BASE_PATH + "modelNumber")
 
 class Folder:
     def __init__(self, xml):
         self.title = xml.find("./{http://purl.org/dc/elements/1.1/}title").text
-        self.id = xml.attrib['id']
+        self.id = get_xml_attr(xml, 'id', -1)
+        self.parent_id = get_xml_attr(xml, 'parentID', -1)
         self.items = []
 
     def add_items(self, items):
@@ -57,10 +85,14 @@ class Item:
     def __init__(self, xml):
         self.type = xml.find("./{urn:schemas-upnp-org:metadata-1-0/upnp/}class").text
         self.title = xml.find("./{http://purl.org/dc/elements/1.1/}title").text
-        self.id = xml.attrib['id']
+        self.id = get_xml_attr(xml, 'id', -1)
+        self.parent_id = get_xml_attr(xml, 'parentID', -1)
         self.description = xml.find("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}description").text
-        self.url = xml.find("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}res").text
-        self.size = int(xml.find("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}res").attrib['size'])
+        res = xml.find("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}res")
+        self.url = res.text
+        self.size = int(get_xml_attr(res, 'size', -1))
+        self.duration = ts_to_seconds(get_xml_attr(res, 'duration', '0'))
+        self.parent_name = get_xml_attr(res, 'parentTaskName')
         self.content_length = 0
 
         with requests.get(self.url, stream=True) as r:
@@ -101,10 +133,20 @@ class Options:
     @property
     def folder(self): return self.__dict['folder']
 
+def ts_to_seconds(ts):
+    return reduce(lambda x,y: float(x) * 60 + float(y), ts.split(':'))
+
+def get_xml_attr(xml, name, default=''):
+    return xml.attrib[name] if name in xml.attrib.keys() else default
+
 def create_valid_filename(filename):
-    result = filename
+    result = filename.strip()
+    #Remove special characters
     for c in '<>:"/\\|?*':
         result = result.replace(c,'')
+    #Remove whitespace
+    for c in '\t ':
+        result = result.replace(c,'_')
     return result
 
 def download_file(url, local_filename):
@@ -148,7 +190,7 @@ def discover_pnp_locations():
 
     return locations
 
-def get_attribute(xml, xml_name, default=''):
+def get_xml_text(xml, xml_name, default=''):
     try:
         return xml.find(xml_name).text
     except AttributeError:
@@ -346,28 +388,28 @@ def show_help():
     print('\t\t -->  Saves recordings for the specified folder to the specified path, if they haven\'t already been copied')
 
 def save_recordings(recordings, path, folder):
-    saved_files = SavedFiles()
-    with open(path + os.path.sep + "save_list.json", "a+") as read_file:
-        read_file.seek(0)
-        content = read_file.read()
-        if content:
-            saved_files = jsonpickle.loads(content)
+    '''
+    Save all recordings for the specified folder (if not already saved)
+    '''
+    some_to_record = False
+    saved_files = SavedFiles.load(path)
     for show in recordings:
         if folder and folder.lower() != show.title.lower():
             continue
 
         for item in show.items:
             if item.is_recording:
-                print('\t -- Skipping recording item: [%s - %s]' % (show.title, item.title))
+                print('\t -- Skipping currently recording item: [%s - %s]' % (show.title, item.title))
                 continue
             if not saved_files.contains(item):
-                directory = path + os.path.sep + create_valid_filename(show.title.replace(' ', '_'))
+                some_to_record = True
+                directory = path + os.path.sep + create_valid_filename(show.title)
                 if not os.path.exists(directory):
                     try:
                         os.makedirs(directory)
                     except OSError:
                         pass                        
-                file_path = directory + os.path.sep + create_valid_filename(item.title.replace(' ', '_')) + '.mpeg'
+                file_path = directory + os.path.sep + create_valid_filename(item.title) + '.mpeg'
                 
                 #Check if already writing
                 lock_file = file_path+'.lock'
@@ -378,10 +420,9 @@ def save_recordings(recordings, path, folder):
                 print('\t -- Writing: [%s] to [%s]' % (item.title, file_path))
                 download_file(item.url, file_path)
                 saved_files.add_file(item)
-    
-                #Save after each success
-                with open(path + os.path.sep + "save_list.json", "w") as write_file:
-                    write_file.write(jsonpickle.dumps(saved_files))
+
+    if not some_to_record:
+        print('\t -- There is nothing new to record')
 
 def main(argv):
     #TODO replace with argparse.ArgumentParser()
