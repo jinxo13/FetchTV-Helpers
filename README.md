@@ -1,5 +1,6 @@
 # FetchTV-Helpers
 Useful tools for FetchTV
+Tested with Python 2.7 and 3.7
 
 ## fetchtv_upnp.py
 I just got my FetchTV and I expected to be able to cast or view recordings on my other devices using the app.
