@@ -43,13 +43,9 @@ class SavedFiles:
             inst.path = path
             return inst
 
-    @property
-    def path(self):
-        return self.__path
-
     def __init__(self):
         self.__files = {}
-        self.__path = False
+        self.path = False
 
     def add_file(self, item):
         self.__files[item.id] = item.title
@@ -143,7 +139,11 @@ def ts_to_seconds(ts):
     Convert timestamp in the form 00:00:00 to seconds.
     e.g. 00:31:27 = 1887 seconds
     '''
-    return reduce(lambda x,y: float(x) * 60 + float(y), ts.split(':'))
+    seconds = 0
+    for val in ts.split(':'):
+        seconds = seconds * 60 + float(val)
+    return seconds
+    #return reduce(lambda x,y: float(x) * 60 + float(y), ts.split(':'))
 
 def get_xml_attr(xml, name, default=''):
     '''
@@ -287,9 +287,9 @@ def get_fetch_recordings(location, folder=False):
             print('\t -- ' + recording.title)
             for item in recording.items:
                 if item.is_recording:
-                    print('\t\t -- (Recording) '+item.title+' (%s)' % item.url)
+                    print('\t\t -- (Recording) %s (%s)' % (item.title, item.url))
                 else:
-                    print('\t\t -- '+item.title+' (%s)' % item.url)
+                    print('\t\t -- %s (%s)' % (item.title, item.url))
         return recordings
     return False
 
