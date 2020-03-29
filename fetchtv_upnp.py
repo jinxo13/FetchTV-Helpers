@@ -9,6 +9,7 @@ import base64
 import struct
 import socket
 import requests
+from datetime import datetime
 import jsonpickle
 import xml.etree.ElementTree as ET
 from pprint import pprint
@@ -452,6 +453,7 @@ def main(argv):
         show_help()
         return
 
+    print('[+] Started: %s' % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     print('[+] Discover Fetch UPnP location:')
     fetch_server = discover_fetch(ip=options.ip, port=int(options.port) if options.port else FETCHTV_PORT)
 
@@ -469,7 +471,7 @@ def main(argv):
         print('[+] Saving Recordings:')
         save_recordings(recordings, options.save, options.folder)
 
-    print("[+] Done")
+    print('[+] Done: %s' % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
 if __name__ == "__main__":
     main(sys.argv)
