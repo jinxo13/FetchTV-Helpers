@@ -19,6 +19,11 @@ except ImportError:
     from urllib.parse import urlparse
 
 SAVE_FILE = "fetchtv_save_list.json"
+MAX_FILENAME = 255
+DISCOVERY_TIMEOUT = 3
+REQUEST_TIMEOUT = 2
+NO_NUMBER_DEFAULT = -1
+FETCHTV_PORT=49152
 
 class SavedFiles:
     '''
@@ -70,8 +75,8 @@ class Location:
 class Folder:
     def __init__(self, xml):
         self.title = xml.find("./{http://purl.org/dc/elements/1.1/}title").text
-        self.id = get_xml_attr(xml, 'id', -1)
-        self.parent_id = get_xml_attr(xml, 'parentID', -1)
+        self.id = get_xml_attr(xml, 'id', NO_NUMBER_DEFAULT)
+        self.parent_id = get_xml_attr(xml, 'parentID', NO_NUMBER_DEFAULT)
         self.items = []
 
     def add_items(self, items):
@@ -85,12 +90,12 @@ class Item:
     def __init__(self, xml):
         self.type = xml.find("./{urn:schemas-upnp-org:metadata-1-0/upnp/}class").text
         self.title = xml.find("./{http://purl.org/dc/elements/1.1/}title").text
-        self.id = get_xml_attr(xml, 'id', -1)
-        self.parent_id = get_xml_attr(xml, 'parentID', -1)
+        self.id = get_xml_attr(xml, 'id', NO_NUMBER_DEFAULT)
+        self.parent_id = get_xml_attr(xml, 'parentID', NO_NUMBER_DEFAULT)
         self.description = xml.find("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}description").text
         res = xml.find("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}res")
         self.url = res.text
-        self.size = int(get_xml_attr(res, 'size', -1))
+        self.size = int(get_xml_attr(res, 'size', NO_NUMBER_DEFAULT))
         self.duration = ts_to_seconds(get_xml_attr(res, 'duration', '0'))
         self.parent_name = get_xml_attr(res, 'parentTaskName')
         self.content_length = 0
@@ -134,9 +139,16 @@ class Options:
     def folder(self): return self.__dict['folder']
 
 def ts_to_seconds(ts):
+    '''
+    Convert timestamp in the form 00:00:00 to seconds.
+    e.g. 00:31:27 = 1887 seconds
+    '''
     return reduce(lambda x,y: float(x) * 60 + float(y), ts.split(':'))
 
 def get_xml_attr(xml, name, default=''):
+    '''
+    Return an attribute value if it exists, if not return the default value
+    '''
     return xml.attrib[name] if name in xml.attrib.keys() else default
 
 def create_valid_filename(filename):
@@ -147,16 +159,19 @@ def create_valid_filename(filename):
     #Remove whitespace
     for c in '\t ':
         result = result.replace(c,'_')
-    return result
+    return result[:MAX_FILENAME]
 
-def download_file(url, local_filename):
+def download_file(url, filename):
+    '''
+    Download the url contents to a file
+    '''
     with requests.get(url, stream=True) as r:
         r.raise_for_status()
-        with open(local_filename+'.lock', 'wb') as f:
+        with open(filename+'.lock', 'wb') as f:
             for chunk in r.iter_content(chunk_size=8192): 
                 if chunk: # filter out keep-alive new chunks
                     f.write(chunk)
-        os.rename(local_filename+'.lock', local_filename)
+        os.rename(filename+'.lock', filename)
 
 def discover_pnp_locations():
     '''
@@ -178,7 +193,7 @@ def discover_pnp_locations():
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.sendto(ssdpDiscover.encode('ASCII'), ("239.255.255.250", 1900))
-    sock.settimeout(3)
+    sock.settimeout(DISCOVERY_TIMEOUT)
     try:
         while True:
             data = sock.recvfrom(1024)[0] # buffer size is 1024 bytes
@@ -191,6 +206,9 @@ def discover_pnp_locations():
     return locations
 
 def get_xml_text(xml, xml_name, default=''):
+    '''
+    Return the text value if it exists, if not return the default value
+    '''
     try:
         return xml.find(xml_name).text
     except AttributeError:
@@ -208,7 +226,7 @@ def parse_locations(locations):
     if len(locations) > 0:
         for location in locations:
             try:
-                resp = requests.get(location, timeout=2)
+                resp = requests.get(location, timeout=REQUEST_TIMEOUT)
                 try:
                     xmlRoot = ET.fromstring(resp.text)
                 except:
@@ -224,8 +242,11 @@ def parse_locations(locations):
     return result
 
 def get_fetch_recordings(location, folder=False):
+    '''
+    Return all FetchTV recordings, or only for a particular folder if specified
+    '''
     parsed = urlparse(location.url)
-    resp = requests.get(location.url, timeout=2)
+    resp = requests.get(location.url, timeout=REQUEST_TIMEOUT)
     try:
         xmlRoot = ET.fromstring(resp.text)
     except:
@@ -244,7 +265,7 @@ def get_fetch_recordings(location, folder=False):
         serviceURL = parsed.scheme + "://" + parsed.netloc + scp
 
         # read in the SCP XML
-        resp = requests.get(serviceURL, timeout=2)
+        resp = requests.get(serviceURL, timeout=REQUEST_TIMEOUT)
         serviceXML = ET.fromstring(resp.text)
 
         actions = serviceXML.findall(".//*{urn:schemas-upnp-org:service-1-0}action")
@@ -354,7 +375,7 @@ def find_items(p_url, p_service, object_id):
         result.append(itm)
     return result   
 
-def discover_fetch(ip=False, port=49152):
+def discover_fetch(ip=False, port=FETCHTV_PORT):
     location_urls = discover_pnp_locations() if not ip else ['http://%s:%i/MediaServer.xml' % (ip, port)]
     locations = parse_locations(location_urls)
     #Find fetch
@@ -375,7 +396,7 @@ def show_help():
     print('\t\t fetchtv_upnp.py --info')
     print('\t\t -->  Attempts auto-discovery and returns the Fetch Servers details')
     print('')
-    print('\t\t fetchtv_upnp.py --ip=192.168.1.100 --port=49152')
+    print('\t\t fetchtv_upnp.py --ip=192.168.1.100 --port=%i' % FETCHTV_PORT)
     print('\t\t --> Returns the Fetch Servers details for the specified ip/port')
     print('')
     print('\t\t fetchtv_upnp.py --recordings')
@@ -432,7 +453,7 @@ def main(argv):
         return
 
     print('[+] Discover Fetch UPnP location:')
-    fetch_server = discover_fetch(ip=options.ip, port=int(options.port) if options.port else 49152)
+    fetch_server = discover_fetch(ip=options.ip, port=int(options.port) if options.port else FETCHTV_PORT)
 
     if not fetch_server:
         return

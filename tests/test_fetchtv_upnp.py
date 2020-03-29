@@ -65,8 +65,18 @@ class TestUpnp(unittest.TestCase):
         fetchtv.main(['--ip='+TestUpnp.FETCHTV_IP, '--port='+str(TestUpnp.FETCHTV_PORT), '--folder="2 Broke Girls"', '--recordings', '--save=c:\\temp'])
 
     def test_valid_filename(self):
+        #Special characters and spaces
         self.assertEqual(fetchtv.create_valid_filename('my:file'), 'myfile')
         self.assertEqual(fetchtv.create_valid_filename('my:>file'), 'myfile')
         self.assertEqual(fetchtv.create_valid_filename('my:> file'), 'my_file')
         self.assertEqual(fetchtv.create_valid_filename('my&*^file '), 'my&^file')
         self.assertEqual(fetchtv.create_valid_filename('my\tfile '), 'my_file')
+
+        #Max file length is 255 characters
+        self.assertEqual(len(fetchtv.create_valid_filename('abc'*85)), 255)
+        self.assertEqual(len(fetchtv.create_valid_filename('abc'*86)), 255)
+
+    def test_ts_to_seconds(self):
+        self.assertEqual(fetchtv.ts_to_seconds('00:31:27'), 1887)
+        self.assertEqual(fetchtv.ts_to_seconds('03:31:27'), 12687)
+        self.assertEqual(fetchtv.ts_to_seconds('00:00:00'), 0)
