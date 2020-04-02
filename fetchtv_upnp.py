@@ -312,7 +312,7 @@ def find_directories(p_url, p_service, object_id='0'):
                '<BrowseFlag>BrowseDirectChildren</BrowseFlag>' +
                '<Filter>*</Filter>' +
                '<StartingIndex>0</StartingIndex>' +
-               '<RequestedCount>10</RequestedCount>' +
+              # '<RequestedCount>10</RequestedCount>' +
                '<SortCriteria></SortCriteria>' +
                '</u:Browse>' +
                '</s:Body>' +
@@ -350,7 +350,7 @@ def find_items(p_url, p_service, object_id):
                '<BrowseFlag>BrowseDirectChildren</BrowseFlag>' +
                '<Filter>*</Filter>' +
                '<StartingIndex>0</StartingIndex>' +
-               '<RequestedCount>10</RequestedCount>' +
+               #'<RequestedCount>10</RequestedCount>' +
                '<SortCriteria></SortCriteria>' +
                '</u:Browse>' +
                '</s:Body>' +
