@@ -23,8 +23,14 @@ fetchtv_upnp.py --help
 fetchtv_upnp.py --info
 -->  Attempts auto-discovery and returns the Fetch Servers details
 
+3.10 Abercrombie release
+fetchtv_upnp.py --ip=192.168.1.100 --port=49153
+--> Returns the Fetch Servers details for the specified ip/port
+
+Previous release
 fetchtv_upnp.py --ip=192.168.1.100 --port=49152
 --> Returns the Fetch Servers details for the specified ip/port
+
 
 fetchtv_upnp.py --recordings
 -->  Returns the list of all recordings
