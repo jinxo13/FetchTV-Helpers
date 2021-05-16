@@ -8,6 +8,7 @@ from datetime import datetime
 import jsonpickle
 import xml.etree.ElementTree as ElementTree
 from pprint import pprint
+from clint.textui import progress
 
 try:
     from urlparse import urlparse
@@ -91,7 +92,9 @@ class Item:
         self.title = xml.find("./{http://purl.org/dc/elements/1.1/}title").text
         self.id = get_xml_attr(xml, 'id', NO_NUMBER_DEFAULT)
         self.parent_id = get_xml_attr(xml, 'parentID', NO_NUMBER_DEFAULT)
-        self.description = xml.find("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}description").text
+        self.description = xml.find("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}description")
+        if self.description and self.description.text:
+            self.description = self.description.text
         res = xml.find("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}res")
         self.url = res.text
         self.size = int(get_xml_attr(res, 'size', NO_NUMBER_DEFAULT))
@@ -197,8 +200,9 @@ def download_file(url, filename):
     """
     with requests.get(url, stream=True) as r:
         r.raise_for_status()
+        total_length = int(r.headers.get('content-length'))
         with open(filename + '.lock', 'wb') as f:
-            for chunk in r.iter_content(chunk_size=8192):
+            for chunk in progress.bar(r.iter_content(chunk_size=8192), expected_size=(total_length / 8192) + 1):
                 if chunk:  # filter out keep-alive new chunks
                     f.write(chunk)
         if os.path.exists(filename):

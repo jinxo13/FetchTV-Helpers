@@ -9,6 +9,12 @@ Alas this was not to be.
 My workaround is to save the recordings to another filesystem accessible by Plex.
 Then use Plex to view, cast etc...
 
+### Install:
+Recommended to use Python 3.7 or higher.
+Install the required dependencies.
+
+```pip install -r requirements.txt```
+
 ### Functions:
 - Autodiscover FetchTV DLNA server
 - View server information
