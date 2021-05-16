@@ -5,9 +5,10 @@ Tested with Python 2.7 and 3.7
 ## fetchtv_upnp.py
 I just got my FetchTV and I expected to be able to cast or view recordings on my other devices using the app.
 Alas this was not to be.
+My workaround is to save the recordings to another filesystem accessible by Plex. Then use Plex to view, cast etc...
 
-My workaround is to save the recordings to another filesystem accessible by Plex.
-Then use Plex to view, cast etc...
+By default this script will only save new recordings, it tracks what is aleaded downloaded in the file fetchtv_save_list.json.
+You can use the '''--overwrite''' option to override this.
 
 ### Install:
 Recommended to use Python 3.7 or higher.
@@ -36,7 +37,7 @@ Install the required dependencies.
         --> Save any new episodes for the show '2 Broke Girls' to C:\\Temp
         fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --folder='2 Broke Girls' --save='C:\\temp'
         
-        --> Save episode contianing 'S4 E12' for the show '2 Broke Girls' to C:\\Temp
+        --> Save episode containing 'S4 E12' for the show '2 Broke Girls' to C:\\Temp
         fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --overwrite --folder='2 Broke Girls' --title='S4 E12' --save='C:\\temp'
 
         Commands:
