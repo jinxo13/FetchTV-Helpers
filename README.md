@@ -8,7 +8,7 @@ Alas this was not to be.
 My workaround is to save the recordings to another filesystem accessible by Plex. Then use Plex to view, cast etc...
 
 By default this script will only save new recordings, it tracks what is aleaded downloaded in the file fetchtv_save_list.json.
-You can use the '''--overwrite''' option to override this.
+You can use the ```--overwrite``` option to override this.
 
 ### Install:
 Recommended to use Python 3.7 or higher.
