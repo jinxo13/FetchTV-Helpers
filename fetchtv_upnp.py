@@ -123,10 +123,10 @@ class Options:
             self.__dict['save'] = self.save.rstrip(os.path.sep)
 
         if self.folder:
-            self.__dict['folder'] = self.folder.replace('"', '')
+            self.__dict['folder'] = self.folder.strip('"\'')
 
         if self.title:
-            self.__dict['title'] = self.title.replace('"', '')
+            self.__dict['title'] = self.title.strip('"\'')
 
     @property
     def help(self):
@@ -449,13 +449,13 @@ def show_help():
         fetchtv_upnp.py --info
         
         --> Save any new recordings to C:\\Temp
-        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --save='C:\\temp'
+        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --save=C:\\temp
 
         --> Save any new episodes for the show '2 Broke Girls' to C:\\Temp
-        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --folder='2 Broke Girls' --save='C:\\temp'
+        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --folder='2 Broke Girls' --save=C:\\temp
         
         --> Save episode contianing 'S4 E12' for the show '2 Broke Girls' to C:\\Temp
-        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --overwrite --folder='2 Broke Girls' --title='S4 E12' --save='C:\\temp'
+        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --overwrite --folder='2 Broke Girls' --title='S4 E12' --save=C:\\temp
 
         Commands:
         --help       --> Display this help

@@ -69,9 +69,14 @@ class TestUpnp(unittest.TestCase):
             ['--ip=' + TestUpnp.FETCHTV_IP, '--port=' + str(TestUpnp.FETCHTV_PORT), '--recordings', '--save=c:\\temp'])
 
     def test_cmdline_show_save(self):
-        fetchtv.download_file = Mock()  # Don't save any files
-        fetchtv.main(['--ip=' + TestUpnp.FETCHTV_IP, '--port=' + str(TestUpnp.FETCHTV_PORT), '--folder="2 Broke Girls"',
+        #fetchtv.download_file = Mock()  # Don't save any files
+        fetchtv.main(['--ip=' + TestUpnp.FETCHTV_IP, '--port=' + str(TestUpnp.FETCHTV_PORT), '--folder="LEGO Masters"',
                       '--recordings', '--save=c:\\temp'])
+
+    def test_cmdline_show_save_all(self):
+        #fetchtv.download_file = Mock()  # Don't save any files
+        fetchtv.main(['--ip=' + TestUpnp.FETCHTV_IP, '--port=' + str(TestUpnp.FETCHTV_PORT), '--folder="LEGO Masters"',
+                      '--recordings', '--overwrite', '--save=c:\\temp'])
 
     def test_cmdline_episode_save(self):
         fetchtv.download_file = Mock()  # Don't save any files
@@ -81,6 +86,10 @@ class TestUpnp(unittest.TestCase):
     def test_cmdline_episode_real_save(self):
         fetchtv.main(['--ip=' + TestUpnp.FETCHTV_IP, '--port=' + str(TestUpnp.FETCHTV_PORT), '--folder="2 Broke Girls"',
                       '--title="S4 E12"', '--overwrite', '--recordings', '--save=c:\\temp'])
+
+    def test_cmdline_episode_real_save2(self):
+        fetchtv.main(['--ip=' + TestUpnp.FETCHTV_IP, '--port=' + str(TestUpnp.FETCHTV_PORT), '--folder=\'2 Broke Girls\'',
+                      '--title=\'S4 E12\'', '--overwrite', '--recordings', '--save=c:\\temp'])
 
     def test_valid_filename(self):
         # Special characters and spaces
