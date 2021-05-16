@@ -201,6 +201,8 @@ def download_file(url, filename):
             for chunk in r.iter_content(chunk_size=8192):
                 if chunk:  # filter out keep-alive new chunks
                     f.write(chunk)
+        if os.path.exists(filename):
+            os.remove(filename)
         os.rename(filename + '.lock', filename)
 
 
