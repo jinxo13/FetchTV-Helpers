@@ -32,13 +32,13 @@ Install the required dependencies.
         fetchtv_upnp.py --info
         
         --> Save any new recordings to C:\\Temp
-        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --save='C:\\temp'
+        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --save="C:\\temp"
 
-        --> Save any new episodes for the show '2 Broke Girls' to C:\\Temp
-        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --folder='2 Broke Girls' --save='C:\\temp'
+        --> Save any new episodes for the show 2 Broke Girls to C:\\Temp
+        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --folder="2 Broke Girls" --save="C:\\temp"
         
-        --> Save episode containing 'S4 E12' for the show '2 Broke Girls' to C:\\Temp
-        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --overwrite --folder='2 Broke Girls' --title='S4 E12' --save='C:\\temp'
+        --> Save episode containing S4 E12 for the show 2 Broke Girls to C:\\Temp
+        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --overwrite --folder="2 Broke Girls" --title="S4 E12" --save="C:\\temp"
 
         Commands:
         --help       --> Display this help
