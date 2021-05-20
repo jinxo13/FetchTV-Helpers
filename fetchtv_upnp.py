@@ -111,22 +111,20 @@ class Item:
 class Options:
     def __init__(self, argv):
         self.__dict = dict()
-        options = ['help', 'ip', 'port', 'recordings', 'info', 'save', 'folder', 'title', 'overwrite']
+        options = ['help', 'ip', 'port', 'recordings', 'info', 'shows', 'save', 'folder',
+                   'title', 'overwrite', 'exclude']
         for opt in options:
             val = next((arg for arg in argv if arg.startswith('--' + opt)), '')
             if val:
                 val = str(val).split('=')
-                val = True if len(val) == 1 else val[1]
-            self.__dict[opt] = val
+                val = True if len(val) == 1 else val[1].strip('"\'')  # Trim any quotes
+            if val and type(val) is str and opt in ['title', 'folder', 'exclude']:
+                self.__dict[opt] = val.split(',')
+            else:
+                self.__dict[opt] = val
 
-        if self.save and self.save.endswith(os.path.sep):
+        if self.save:
             self.__dict['save'] = self.save.rstrip(os.path.sep)
-
-        if self.folder:
-            self.__dict['folder'] = self.folder.strip('"\'')
-
-        if self.title:
-            self.__dict['title'] = self.title.strip('"\'')
 
     @property
     def help(self):
@@ -157,12 +155,20 @@ class Options:
         return self.__dict['folder']
 
     @property
+    def shows(self):
+        return self.__dict['shows']
+
+    @property
     def title(self):
         return self.__dict['title']
 
     @property
     def overwrite(self):
         return self.__dict['overwrite']
+
+    @property
+    def exclude(self):
+        return self.__dict['exclude']
 
 
 def ts_to_seconds(ts):
@@ -237,7 +243,8 @@ def discover_pnp_locations():
             location_result = location_regex.search(data.decode('ASCII'))
             if location_result and not (location_result.group(1) in locations):
                 locations.add(location_result.group(1))
-    except socket.error:
+    except socket.error as err:
+        print(err)
         sock.close()
 
     return locations
@@ -325,19 +332,30 @@ def get_fetch_recordings(location, options: Options):
         for recording in recordings:
             result = {'title': recording.title, 'items': []}
             # Skip not matching folders
-            if options.folder and recording.title.lower().find(options.folder.lower()) == -1:
+            if (options.folder and
+                    not next((include_folder for include_folder in options.folder
+                              if recording.title.lower().find(include_folder.strip().lower()) != -1), False)):
+                continue
+            # Skip excluded folders
+            if (options.exclude and
+                    next((exclude_folder for exclude_folder in options.exclude
+                          if recording.title.lower().find(exclude_folder.strip().lower()) != -1), False)):
                 continue
             print('\t -- ' + recording.title)
-            for item in recording.items:
-                # Skip not matching titles
-                if options.title and item.title.lower().find(options.title.lower()) == -1:
-                    continue
-                if item.is_recording:
-                    print('\t\t -- (Recording) %s (%s)' % (item.title, item.url))
-                else:
-                    print('\t\t -- %s (%s)' % (item.title, item.url))
-                    result['items'].append(item)
-            results.append(result)
+
+            if not options.shows:  # Only display folders
+                for item in recording.items:
+                    # Skip not matching titles
+                    if (options.title and
+                            not next((include_title for include_title in options.title
+                                      if item.title.lower().find(include_title.strip().lower()) != -1), False)):
+                        continue
+                    if item.is_recording:
+                        print('\t\t -- (Recording) %s (%s)' % (item.title, item.url))
+                    else:
+                        print('\t\t -- %s (%s)' % (item.title, item.url))
+                        result['items'].append(item)
+                results.append(result)
         return results
     return False
 
@@ -366,7 +384,7 @@ def find_directories(p_url, p_service, object_id='0'):
                '</s:Envelope>')
 
     soap_action_header = {'Soapaction': '"' + p_service + '#Browse' + '"',
-                        'Content-type': 'text/xml;charset="utf-8"'}
+                          'Content-type': 'text/xml;charset="utf-8"'}
 
     resp = requests.post(p_url, data=payload, headers=soap_action_header)
     if resp.status_code != 200:
@@ -405,7 +423,7 @@ def find_items(p_url, p_service, object_id):
                '</s:Envelope>')
 
     soap_action_header = {'Soapaction': '"' + p_service + '#Browse' + '"',
-                        'Content-type': 'text/xml;charset="utf-8"'}
+                          'Content-type': 'text/xml;charset="utf-8"'}
 
     resp = requests.post(p_url, data=payload, headers=soap_action_header)
     if resp.status_code != 200:
@@ -448,27 +466,41 @@ def show_help():
         --> Display Fetch Server details
         fetchtv_upnp.py --info
         
-        --> Save any new recordings to C:\\Temp
-        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --save=C:\\temp
+        --> List all availble recorded shows (doesn't include episodes)
+        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --shows
 
-        --> Save any new episodes for the show '2 Broke Girls' to C:\\Temp
-        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --folder='2 Broke Girls' --save=C:\\temp
+        --> List all availble recorded recordings (all shows and episodes)
+        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --recordings
+
+        --> Save any new recordings to C:\\Temp
+        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --save="C:\\\\temp"
+
+        --> Save any new recordings to C:\\Temp apart from 2 Broke Girls
+        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --save="C:\\\\temp" --exclude="2 Broke Girls"
+
+        --> Save any new episodes for the show 2 Broke Girls to C:\\Temp
+        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --folder="2 Broke Girls" --save="C:\\\\temp"
         
-        --> Save episode contianing 'S4 E12' for the show '2 Broke Girls' to C:\\Temp
-        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --overwrite --folder='2 Broke Girls' --title='S4 E12' --save=C:\\temp
+        --> Save episode containing 'S4 E12' for the show 2 Broke Girls to C:\\Temp
+        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --overwrite --folder="2 Broke Girls" --title="S4 E12" --save="C:\\\\temp"
+
+        --> Save episode containing 'S4 E12' or 'S4 E13' for the show 2 Broke Girls to C:\\Temp
+        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --overwrite --folder="2 Broke Girls" --title="S4 E12, S4 E13" --save="C:\\\\temp"
 
         Commands:
         --help       --> Display this help
         --info       --> Attempts auto-discovery and returns the Fetch Servers details
         --recordings --> List or save recordings
+        --shows      --> List the names of shows with available recordings
 
         Options:
-        --ip=<ip_address>  --> Specify the IP Address of the Fetch Server, if auto-discovery fails
-        --port=<port>      --> Specify yhe port of the Fetch Server, if auto-discovery fails, normally 49152
-        --overwrite        --> Will save and overwrite any existing files
-        --save=<path>      --> Save recordings to the specified path
-        --folder=<text>    --> Only return recordings where the folder contains the specified text
-        --title=<text>     --> Only return recordings where the item contains the specified text
+        --ip=<ip_address>             --> Specify the IP Address of the Fetch Server, if auto-discovery fails
+        --port=<port>                 --> Specify yhe port of the Fetch Server, if auto-discovery fails, normally 49152
+        --overwrite                   --> Will save and overwrite any existing files
+        --save=<path>                 --> Save recordings to the specified path
+        --folder="<text>[,<text>]"    --> Only return recordings where the folder contains the specified text
+        --exclude="<text>[,<text>]"   --> Don't download folders containing the specified text
+        --title="<text>[,<text>]"     --> Only return recordings where the item contains the specified text
     ''')
 
 
@@ -525,7 +557,7 @@ def main(argv):
     if options.info:
         pprint(vars(fetch_server))
 
-    if options.recordings:
+    if options.recordings or options.shows:
         print('[+] List Recordings:')
         recordings = get_fetch_recordings(fetch_server, options)
 
