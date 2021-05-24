@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+   <specVersion>
+      <major>1</major>
+      <minor>0</minor>
+   </specVersion>
+   <device>
+      <deviceType>urn:schemas-upnp-org:device:MediaServer:1</deviceType>
+      <friendlyName>STB 192.168.1.147</friendlyName>
+      <manufacturer>Fetch Technologies Co., Ltd</manufacturer>
+      <manufacturerURL>http://www.fetch.com/</manufacturerURL>
+      <modelDescription>DLNA1.5 MediaServer</modelDescription>
+      <modelName>Fetch DLNA1.5 DMS</modelName>
+      <modelNumber>1</modelNumber>
+      <modelURL>http://www.fetch.com/</modelURL>
+      <serialNumber>001</serialNumber>
+      <UDN>uuid:898f9738-d930-4db4-a3cf-00000</UDN>
+      <presentationURL>presentation.html</presentationURL>
+      <iconList>
+         <icon>
+            <mimetype>image/jpeg</mimetype>
+            <width>0</width>
+            <height>0</height>
+            <depth>24</depth>
+            <url>/DMS_LOGO.jpg</url>
+         </icon>
+      </iconList>
+      <serviceList>
+         <service>
+            <serviceType>urn:schemas-upnp-org:service:ContentDirectory:1</serviceType>
+            <serviceId>urn:upnp-org:serviceId:ContentDirectory</serviceId>
+            <SCPDURL>/web/cds.xml</SCPDURL>
+            <controlURL>/web/cds_control</controlURL>
+            <eventSubURL>/web/cds_event</eventSubURL>
+         </service>
+         <service>
+            <serviceType>urn:schemas-upnp-org:service:ConnectionManager:1</serviceType>
+            <serviceId>urn:upnp-org:serviceId:ConnectionManager</serviceId>
+            <SCPDURL>/web/cms.xml</SCPDURL>
+            <controlURL>/web/cms_control</controlURL>
+            <eventSubURL>/web/cms_event</eventSubURL>
+         </service>
+      </serviceList>
+   </device>
+</root>
