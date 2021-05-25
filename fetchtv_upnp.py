@@ -253,10 +253,10 @@ def show_help():
         --> Display Fetch Server details
         fetchtv_upnp.py --info
         
-        --> List all availble recorded shows (doesn't include episodes)
+        --> List all available recorded shows (doesn't include episodes)
         fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --shows
 
-        --> List all availble recorded recordings (all shows and episodes)
+        --> List all available recorded recordings (all shows and episodes)
         fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --recordings
 
         --> Save any new recordings to C:\\Temp

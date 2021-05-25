@@ -46,6 +46,7 @@ def mock_get(p_url, timeout=0, stream=False):
         result.text = get_file('responses' + os.path.sep + 'fetch_info.xml')
     return result
 
+
 def mock_get_recording(p_url, timeout=0, stream=False):
     result = Mock()
     result.__enter__ = Mock(return_value=result)
@@ -58,6 +59,7 @@ def mock_get_recording(p_url, timeout=0, stream=False):
     else:
         result.text = get_file('responses' + os.path.sep + 'fetch_info.xml')
     return result
+
 
 def mock_post(p_url, data, headers):
     result = Mock()
@@ -137,6 +139,7 @@ class TestOptions(unittest.TestCase):
 
             options = fetchtv.Options([f'--{option}="wibble, wobble, rabble"'])
             self.assertEqual(options.__getattribute__(option), 'wibble, wobble, rabble')
+
 
 @patch('requests.get', mock_get)
 @patch('requests.post', mock_post)

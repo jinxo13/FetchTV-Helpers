@@ -1,6 +1,6 @@
 # FetchTV-Helpers
 Useful tools for FetchTV
-Tested with Python 2.7 and 3.7
+Tested with Python 3.7, requires at least Python 3.6.
 
 ## fetchtv_upnp.py
 I just got my FetchTV and I expected to be able to cast or view recordings on my other devices using the app.
@@ -32,10 +32,10 @@ Install the required dependencies.
         --> Display Fetch Server details
         fetchtv_upnp.py --info
         
-        --> List all availble recorded shows (doesn't include episodes)
+        --> List all available recorded shows (doesn't include episodes)
         fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --shows
 
-        --> List all availble recorded recordings (all shows and episodes)
+        --> List all available recorded recordings (all shows and episodes)
         fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --recrdings
 
         --> Save any new recordings to C:\\Temp
