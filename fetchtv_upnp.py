@@ -1,6 +1,8 @@
 #!/usr/bin/python
+import json
 import os
 import sys
+import re
 import requests
 from datetime import datetime
 import jsonpickle
@@ -19,6 +21,7 @@ CONST_LOCK = '.lock'
 MAX_FILENAME = 255
 REQUEST_TIMEOUT = 5
 MAX_OCTET = 4398046510080
+
 
 class SavedFiles:
     """
@@ -53,9 +56,11 @@ class SavedFiles:
 
 
 class Options:
-    PARAM_COMMANDS = ['help', 'info', 'shows', 'recordings']
-    PARAM_OPTIONS = ['ip', 'port', 'save', 'folder', 'title', 'overwrite', 'exclude']
+    PARAM_COMMANDS = ['help', 'info', 'shows', 'recordings', 'isrecording']
+    PARAM_OPTIONS = ['ip', 'port', 'save', 'folder', 'title', 'overwrite', 'exclude', 'new', 'json']
     PARAM_MULTI_VALUE = ['title', 'folder', 'exclude']
+
+    INSTANCE = None
 
     def __init__(self, argv):
         self.__dict = dict()
@@ -64,7 +69,9 @@ class Options:
         self.set_options(argv)
 
         if self.save:
+            self.__dict['json'] = False  # No JSON output allowed when saving
             self.__dict['save'] = self.save.rstrip(os.path.sep)
+        Options.INSTANCE = self
 
     def set_commands(self, argv):
         """
@@ -117,6 +124,10 @@ class Options:
         return self.__dict['recordings']
 
     @property
+    def is_recording(self):
+        return self.__dict['isrecording']
+
+    @property
     def save(self):
         return self.__dict['save']
 
@@ -140,6 +151,10 @@ class Options:
     def exclude(self):
         return self.__dict['exclude']
 
+    @property
+    def json(self):
+        return self.__dict['json']
+
 
 def create_valid_filename(filename):
     result = filename.strip()
@@ -156,12 +171,12 @@ def download_file(item, filename):
     """
     Download the url contents to a file
     """
-    print('\t -- Writing: [%s] to [%s]' % (item.title, filename))
+    print_item('Writing: [%s] to [%s]' % (item.title, filename))
     with requests.get(item.url, stream=True) as r:
         r.raise_for_status()
         total_length = int(r.headers.get('content-length'))
         if total_length == MAX_OCTET:
-            print('\t\t -- [!] Skipping item it\'s currently recording')
+            print_warning('Skipping item it\'s currently recording', level=2)
             return False
 
         try:
@@ -171,11 +186,11 @@ def download_file(item, filename):
                         f.write(chunk)
 
         except FileExistsError:
-            print('\t\t -- [!] Already writing (lock file exists) skipping')
+            print_warning('Already writing (lock file exists) skipping', level=2)
             return False
 
         except IOError as err:
-            print('\t\t -- [!] Error writing file: %s' % err.msg)
+            print_error('Error writing file: %s' % err.msg, level=2)
             return False
 
         if os.path.exists(filename):
@@ -184,17 +199,42 @@ def download_file(item, filename):
         return True
 
 
-def get_fetch_recordings(location, options: Options):
+def get_fetch_recordings(location, options):
     """
     Return all FetchTV recordings, or only for a particular folder if specified
     """
-    cd_ctr, cd_service = upnp.get_services(location)
-    base_folders = upnp.find_directories(cd_ctr, cd_service)
+    api_service = upnp.get_services(location)
+    base_folders = upnp.find_directories(api_service)
     recording = [folder for folder in base_folders if folder.title == 'Recordings']
     if len(recording) == 0:
         return []
-    recordings = upnp.find_directories(cd_ctr, cd_service, recording[0].id)
+    recordings = upnp.find_directories(api_service, recording[0].id)
     return filter_recording_items(options, recordings)
+
+
+def has_include_folder(recording, options):
+    return not (options.folder and
+                not next((include_folder for include_folder in options.folder
+                          if recording.title.lower().find(include_folder.strip().lower()) != -1), False))
+
+
+def has_exclude_folder(recording, options):
+    return (options.exclude and
+            next((exclude_folder for exclude_folder in options.exclude
+                  if recording.title.lower().find(exclude_folder.strip().lower()) != -1), False))
+
+
+def has_title_match(item, options):
+    return not (options.title and
+                not next((include_title for include_title in options.title
+                          if item.title.lower().find(include_title.strip().lower()) != -1), False))
+
+
+def is_recording(item):
+    with requests.get(item.url, stream=True) as r:
+        r.raise_for_status()
+        total_length = int(r.headers.get('content-length'))
+        return total_length == MAX_OCTET
 
 
 def filter_recording_items(options, recordings):
@@ -203,44 +243,44 @@ def filter_recording_items(options, recordings):
     """
     results = []
     for recording in recordings:
-        result = {'title': recording.title, 'items': []}
+        result = {'title': recording.title, 'id': recording.id, 'items': []}
         # Skip not matching folders
-        if (options.folder and
-                not next((include_folder for include_folder in options.folder
-                          if recording.title.lower().find(include_folder.strip().lower()) != -1), False)):
+        if not has_include_folder(recording, options) or has_exclude_folder(recording, options):
             continue
-        # Skip excluded folders
-        if (options.exclude and
-                next((exclude_folder for exclude_folder in options.exclude
-                      if recording.title.lower().find(exclude_folder.strip().lower()) != -1), False)):
-            continue
-        print('\t -- ' + recording.title)
 
         # Process recorded items
-        if not options.shows:  # Only display folders
+        if not options.shows:  # Include items
             for item in recording.items:
                 # Skip not matching titles
-                if (options.title and
-                        not next((include_title for include_title in options.title
-                                  if item.title.lower().find(include_title.strip().lower()) != -1), False)):
+                if not has_title_match(item, options):
                     continue
-                print('\t\t -- %s (%s)' % (item.title, item.url))
-                result['items'].append(item)
-            results.append(result)
+
+                # Only include recording item if requested
+                if not options.is_recording or is_recording(item):
+                    result['items'].append(item)
+
+        results.append(result)
+        if options.is_recording:
+            # Only return folders with a recording item
+            results = [result for result in results if len(result['items']) > 0]
     return results
 
 
 def discover_fetch(ip=False, port=FETCHTV_PORT):
-    location_urls = upnp.discover_pnp_locations() if not ip else ['http://%s:%i/MediaServer.xml' % (ip, port)]
-    locations = upnp.parse_locations(location_urls)
-    # Find fetch
-    result = [location for location in locations if location.manufacturerURL == 'http://www.fetch.com/']
-    if len(result) == 0:
-        print('\tERROR: Unable to locate Fetch UPNP service')
-        print('[+] Discovery failed')
-        return False
+    print_heading('Starting Discovery')
+    try:
+        location_urls = upnp.discover_pnp_locations() if not ip else ['http://%s:%i/MediaServer.xml' % (ip, port)]
+        locations = upnp.parse_locations(location_urls)
+        # Find fetch
+        result = [location for location in locations if location.manufacturerURL == 'http://www.fetch.com/']
+        if len(result) == 0:
+            print_heading('Discovery failed', 'ERROR: Unable to locate Fetch UPNP service')
+            return False
+        print_heading('Discovery successful', result[0].url)
+    except upnp.UpnpError as err:
+        print_error(err)
+        return None
 
-    print('[+] Discovery successful: ' + result[0].url)
     return result[0]
 
 
@@ -256,7 +296,7 @@ def show_help():
         --> List all available recorded shows (doesn't include episodes)
         fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --shows
 
-        --> List all available recorded recordings (all shows and episodes)
+        --> List all available recorded items (all shows and episodes)
         fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --recordings
 
         --> Save any new recordings to C:\\Temp
@@ -275,10 +315,12 @@ def show_help():
         fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --overwrite --folder="2 Broke Girls" --title="S4 E12, S4 E13" --save="C:\\\\temp"
 
         Commands:
-        --help       --> Display this help
-        --info       --> Attempts auto-discovery and returns the Fetch Servers details
-        --recordings --> List or save recordings
-        --shows      --> List the names of shows with available recordings
+        --help        --> Display this help
+        --info        --> Attempts auto-discovery and returns the Fetch Servers details
+        --recordings  --> List or save recordings
+        --shows       --> List the names of shows with available recordings
+        --isrecording --> List any items that are currently recording. If no filtering is specified this will scan all
+                          items on the Fetch server so it can take some time
 
         Options:
         --ip=<ip_address>             --> Specify the IP Address of the Fetch Server, if auto-discovery fails
@@ -288,6 +330,7 @@ def show_help():
         --folder="<text>[,<text>]"    --> Only return recordings where the folder contains the specified text
         --exclude="<text>[,<text>]"   --> Don't download folders containing the specified text
         --title="<text>[,<text>]"     --> Only return recordings where the item contains the specified text
+        --json                        --> Output show/recording results in JSON, ignored if save option is specified
     ''')
 
 
@@ -320,14 +363,70 @@ def save_recordings(recordings, options: Options):
         print('\t -- There is nothing new to record')
 
 
+def print_item(param, level=1):
+    if Options.INSTANCE and Options.INSTANCE.json:
+        return
+    space = '\t' * level
+    print(f'{space} -- {param}')
+
+
+def print_warning(param, level=2):
+    if Options.INSTANCE and Options.INSTANCE.json:
+        return
+    space = '\t' * level
+    print(f'{space} -- [!] {param}')
+
+
+def print_error(param, level=2):
+    if Options.INSTANCE and Options.INSTANCE.json:
+        return
+    space = '\t' * level
+    print(f'{space} -- [!] {param}')
+
+
+def print_recordings(recordings):
+    if Options.INSTANCE and not Options.INSTANCE.json:
+        print_heading('List Recordings')
+        if not recordings:
+            print_warning('No recordings found!', level=1)
+        for recording in recordings:
+            print_item(recording['title'])
+            for item in recording['items']:
+                print_item(f'{item.title} ({item.url})', level=2)
+    else:
+        output = []
+        for recording in recordings:
+            items = []
+            output.append({'id': recording['id'], 'title': recording['title'], 'items': items})
+            for item in recording['items']:
+                item_type = 'episode' if re.match('^S\\d+ E\\d+', item.title) else 'movie'
+                items.append({
+                    'id': item.id,
+                    'title': item.title,
+                    'type': item_type,
+                    'duration': item.duration,
+                    'size': item.size,
+                    'description': item.description
+                })
+        output = json.dumps(output, indent=2, sort_keys=False)
+        print(output)
+        return output
+
+
+def print_heading(param, value=''):
+    if Options.INSTANCE and Options.INSTANCE.json:
+        return
+    print(f'[+] {param}: {value}')
+
+
 def main(argv):
     options = Options(argv)
     if options.help:
         show_help()
         return
 
-    print('[+] Started: %s' % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    print('[+] Discover Fetch UPnP location:')
+    print_heading('Started', datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    print_heading('Discover Fetch UPnP location')
     fetch_server = discover_fetch(ip=options.ip, port=int(options.port) if options.port else FETCHTV_PORT)
 
     if not fetch_server:
@@ -336,15 +435,14 @@ def main(argv):
     if options.info:
         pprint(vars(fetch_server))
 
-    if options.recordings or options.shows:
-        print('[+] List Recordings:')
+    if options.recordings or options.shows or options.is_recording:
         recordings = get_fetch_recordings(fetch_server, options)
-
-        if options.save:
-            print('[+] Saving Recordings:')
+        if not options.save:
+            print_recordings(recordings)
+        else:
+            print_heading('Saving Recordings')
             save_recordings(recordings, options)
-
-    print('[+] Done: %s' % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    print_heading('Done', datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
 
 if __name__ == "__main__":

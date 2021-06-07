@@ -1,3 +1,4 @@
+import json
 import os
 import unittest
 import fetchtv_upnp as fetchtv
@@ -12,8 +13,10 @@ OPTION_FOLDER = '--folder'
 OPTION_TITLE = '--title'
 OPTION_EXCLUDE = '--exclude'
 OPTION_SAVE = '--save'
+OPTION_JSON = '--json'
 
 CMD_RECORDINGS = '--recordings'
+CMD_IS_RECORDING = '--isrecording'
 CMD_INFO = '--info'
 CMD_SHOWS = '--shows'
 CMD_HELP = '--help'
@@ -39,11 +42,17 @@ def mock_get(p_url, timeout=0, stream=False):
     result.__exit__ = Mock()
     result.iter_content = Mock(return_value='0')
     result.status_code = 200
-    result.headers = {'content-length': 5}
-    if p_url.endswith('cds.xml'):
-        result.text = get_file('responses' + os.path.sep + 'fetch_cds.xml')
+    # Simulate a recording item
+    if p_url == 'http://192.168.1.147:49152/web/903106340':
+        result.headers = {'content-length': fetchtv.MAX_OCTET}
     else:
-        result.text = get_file('responses' + os.path.sep + 'fetch_info.xml')
+        result.headers = {'content-length': 5}
+
+    response_dir = os.path.dirname(__file__) + os.path.sep + 'responses' + os.path.sep
+    if p_url.endswith('cds.xml'):
+        result.text = get_file(response_dir + 'fetch_cds.xml')
+    else:
+        result.text = get_file(response_dir + 'fetch_info.xml')
     return result
 
 
@@ -54,10 +63,11 @@ def mock_get_recording(p_url, timeout=0, stream=False):
     result.iter_content = Mock(return_value='0')
     result.status_code = 200
     result.headers = {'content-length': fetchtv.MAX_OCTET}
+    response_dir = os.path.dirname(__file__) + os.path.sep + 'responses' + os.path.sep
     if p_url.endswith('cds.xml'):
-        result.text = get_file('responses' + os.path.sep + 'fetch_cds.xml')
+        result.text = get_file(response_dir + 'fetch_cds.xml')
     else:
-        result.text = get_file('responses' + os.path.sep + 'fetch_info.xml')
+        result.text = get_file(response_dir + 'fetch_info.xml')
     return result
 
 
@@ -66,15 +76,17 @@ def mock_post(p_url, data, headers):
     result.__enter__ = Mock()
     result.__exit__ = Mock()
     result.status_code = 200
+
+    response_dir = os.path.dirname(__file__) + os.path.sep + 'responses' + os.path.sep
     if data.find('<ObjectID>61</ObjectID>') != -1:
-        result.text = get_file('responses' + os.path.sep + 'fetch_recording_items.xml')
+        result.text = get_file(response_dir + 'fetch_recording_items.xml')
     elif data.find('<ObjectID>0</ObjectID>') != -1:
         if p_url.startswith(URL_NO_RECORDINGS):
-            result.text = get_file('responses' + os.path.sep + 'fetch_no_recordings.xml')
+            result.text = get_file(response_dir + 'fetch_no_recordings.xml')
         else:
-            result.text = get_file('responses' + os.path.sep + 'fetch_base_folders.xml')
+            result.text = get_file(response_dir + 'fetch_base_folders.xml')
     else:
-        result.text = get_file('responses' + os.path.sep + 'fetch_recording_folders.xml')
+        result.text = get_file(response_dir + 'fetch_recording_folders.xml')
     return result
 
 
@@ -150,13 +162,24 @@ class TestGetFetchRecordings(unittest.TestCase):
         fetch_server.url = URL_DUMMY
         options = fetchtv.Options([CMD_SHOWS])
         results = fetchtv.get_fetch_recordings(fetch_server, options)
-        self.assertEqual(0, len(results))
+        fetchtv.print_recordings(results)
+        self.assertEqual(8, len(results))
+
+    def test_get_shows_json(self):
+        fetch_server = Mock()
+        fetch_server.url = URL_DUMMY
+        options = fetchtv.Options([CMD_SHOWS, OPTION_JSON])
+        results = fetchtv.get_fetch_recordings(fetch_server, options)
+        output = fetchtv.print_recordings(results)
+        output = json.loads(output)
+        self.assertEqual(8, len(output))
 
     def test_no_recordings_folder(self):
         fetch_server = Mock()
         fetch_server.url = URL_NO_RECORDINGS
         options = fetchtv.Options([CMD_RECORDINGS])
         results = fetchtv.get_fetch_recordings(fetch_server, options)
+        fetchtv.print_recordings(results)
         self.assertEqual(0, len(results))
 
     def test_get_all_recordings(self):
@@ -164,8 +187,29 @@ class TestGetFetchRecordings(unittest.TestCase):
         fetch_server.url = URL_DUMMY
         options = fetchtv.Options([CMD_RECORDINGS])
         results = fetchtv.get_fetch_recordings(fetch_server, options)
+        fetchtv.print_recordings(results)
         self.assertEqual(8, len(results))
         self.assertEqual(134, len(results[4]['items']))
+
+    def test_get_all_recordings_json(self):
+        fetch_server = Mock()
+        fetch_server.url = URL_DUMMY
+        options = fetchtv.Options([CMD_RECORDINGS, OPTION_JSON])
+        results = fetchtv.get_fetch_recordings(fetch_server, options)
+        output = fetchtv.print_recordings(results)
+        output = json.loads(output)
+        self.assertEqual(8, len(output))
+        self.assertEqual(134, len(output[4]['items']))
+
+    def test_get_recordings_items_json(self):
+        fetch_server = Mock()
+        fetch_server.url = URL_DUMMY
+        options = fetchtv.Options([CMD_IS_RECORDING, OPTION_JSON])
+        results = fetchtv.get_fetch_recordings(fetch_server, options)
+        output = fetchtv.print_recordings(results)
+        output = json.loads(output)
+        self.assertEqual(1, len(output))
+        self.assertEqual(1, len(output[0]['items']))
 
     def test_exclude_one_show(self):
         fetch_server = Mock()
@@ -173,6 +217,7 @@ class TestGetFetchRecordings(unittest.TestCase):
         options = fetchtv.Options([CMD_RECORDINGS,
                                    f'{OPTION_EXCLUDE}="{SHOW_ONE}"'])
         results = fetchtv.get_fetch_recordings(fetch_server, options)
+        fetchtv.print_recordings(results)
         self.assertEqual(7, len(results))
 
     def test_exclude_two_shows(self):
@@ -181,6 +226,7 @@ class TestGetFetchRecordings(unittest.TestCase):
         options = fetchtv.Options([CMD_RECORDINGS,
                                    f'{OPTION_EXCLUDE}="{SHOW_ONE}, {SHOW_TWO}"'])
         results = fetchtv.get_fetch_recordings(fetch_server, options)
+        fetchtv.print_recordings(results)
         self.assertEqual(5, len(results))  # Test data has LEGO Masters and Lego Masters - both are matched
 
     def test_get_one_show_recording(self):
@@ -189,6 +235,7 @@ class TestGetFetchRecordings(unittest.TestCase):
         options = fetchtv.Options([CMD_RECORDINGS,
                                    f'{OPTION_FOLDER}="{SHOW_ONE}"'])
         results = fetchtv.get_fetch_recordings(fetch_server, options)
+        fetchtv.print_recordings(results)
         self.assertEqual(1, len(results))
         self.assertEqual(134, len(results[0]['items']))
 
@@ -198,6 +245,7 @@ class TestGetFetchRecordings(unittest.TestCase):
         options = fetchtv.Options([CMD_RECORDINGS,
                                    f'{OPTION_FOLDER}="{SHOW_ONE}, {SHOW_TWO}"'])
         results = fetchtv.get_fetch_recordings(fetch_server, options)
+        fetchtv.print_recordings(results)
         self.assertEqual(3, len(results))  # Test data returns LEGO Masters and Lego Masters....
 
     def test_get_one_recording_item(self):
@@ -207,6 +255,7 @@ class TestGetFetchRecordings(unittest.TestCase):
                                    f'{OPTION_FOLDER}="{SHOW_ONE}"',
                                    f'{OPTION_TITLE}="{SHOW_ONE_EP_ONE}"'])
         results = fetchtv.get_fetch_recordings(fetch_server, options)
+        fetchtv.print_recordings(results)
         self.assertEqual(1, len(results))
         self.assertEqual(1, len(results[0]['items']))
 
@@ -217,6 +266,7 @@ class TestGetFetchRecordings(unittest.TestCase):
                                    f'{OPTION_FOLDER}="{SHOW_ONE}"',
                                    f'{OPTION_TITLE}="{SHOW_ONE_EP_ONE}, {SHOW_ONE_EP_TWO}"'])
         results = fetchtv.get_fetch_recordings(fetch_server, options)
+        fetchtv.print_recordings(results)
         self.assertEqual(1, len(results))
         self.assertEqual(2, len(results[0]['items']))
 
@@ -225,6 +275,7 @@ class TestSaveRecordings(unittest.TestCase):
     pass
 
 
+@patch('requests.get', mock_get)
 class TestDownloadFile(unittest.TestCase):
 
     def test_save_item(self):

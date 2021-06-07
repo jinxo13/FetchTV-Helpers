@@ -13,6 +13,11 @@ REQUEST_TIMEOUT = 5
 NO_NUMBER_DEFAULT = ''
 
 
+class UpnpError(Exception):
+    def __init__(self, msg):
+        super().__init__(msg)
+
+
 class Location:
     BASE_PATH = "./{urn:schemas-upnp-org:device-1-0}device/{urn:schemas-upnp-org:device-1-0}"
 
@@ -46,7 +51,7 @@ class Item:
         self.id = get_xml_attr(xml, 'id', NO_NUMBER_DEFAULT)
         self.parent_id = get_xml_attr(xml, 'parentID', NO_NUMBER_DEFAULT)
         self.description = xml.find("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}description")
-        if self.description and self.description.text:
+        if self.description is not None and self.description.text:
             self.description = self.description.text
         res = xml.find("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}res")
         self.url = res.text
@@ -100,11 +105,12 @@ def discover_pnp_locations():
             location_result = location_regex.search(data.decode('ASCII'))
             if location_result and not (location_result.group(1) in locations):
                 locations.add(location_result.group(1))
+    except socket.timeout:
+        return locations
     except socket.error as err:
-        print(err)
+        raise UpnpError(msg=f'A socket error occurred, Error: {err}')
+    finally:
         sock.close()
-
-    return locations
 
 
 def get_xml_text(xml, xml_name, default=''):
@@ -133,16 +139,15 @@ def parse_locations(locations):
                 try:
                     xml_root = ElementTree.fromstring(resp.text)
                 except ElementTree.ParseError as err:
-                    print('[!] Parsing failed: %s' % err.msg)
-                    continue
+                    raise UpnpError(msg=f'XML Parsing failed for location {location}, Error: {err.msg}')
 
                 loc = Location(location, xml_root)
                 result.append(loc)
 
-            except requests.exceptions.ConnectionError:
-                print('[!] Could not load %s' % location)
+            except requests.exceptions.ConnectionError as err:
+                raise UpnpError(msg=f'Connection Error, could not load {location}, Error: {err}')
             except requests.exceptions.ReadTimeout:
-                print('[!] Timeout reading from %s' % location)
+                raise UpnpError(msg=f'Timeout reading from {location}')
     return result
 
 
@@ -151,15 +156,12 @@ def get_services(location):
     resp = requests.get(location.url, timeout=REQUEST_TIMEOUT)
     try:
         xml_root = ElementTree.fromstring(resp.text)
-    except Exception as e:
-        print(e)
-        print('\t[!] Failed XML parsing of %s' % location.url)
-        return
-    cd_ctr = ''
-    cd_service = ''
+    except Exception as err:
+        raise UpnpError(msg=f'XML parsing failed for location: {location}, Error: {err.msg}')
+
+    result = {}
 
     services = xml_root.findall(".//*{urn:schemas-upnp-org:device-1-0}serviceList/")
-    print('\t-> Services:')
     for service in services:
         # Add a lead in '/' if it doesn't exist
         scp = service.find('./{urn:schemas-upnp-org:device-1-0}SCPDURL').text
@@ -174,15 +176,15 @@ def get_services(location):
         actions = service_xml.findall(".//*{urn:schemas-upnp-org:service-1-0}action")
         for action in actions:
             if action.find('./{urn:schemas-upnp-org:service-1-0}name').text == 'Browse':
-                print('\t\t=> API: %s' % service_url)
-                cd_ctr = parsed.scheme + "://" + parsed.netloc + service.find(
+                result['service_url'] = service_url
+                result['cd_ctr'] = parsed.scheme + "://" + parsed.netloc + service.find(
                     './{urn:schemas-upnp-org:device-1-0}controlURL').text
-                cd_service = service.find('./{urn:schemas-upnp-org:device-1-0}serviceType').text
+                result['cd_service'] = service.find('./{urn:schemas-upnp-org:device-1-0}serviceType').text
                 break
-    return cd_ctr, cd_service
+    return result
 
 
-def find_directories(p_url, p_service, object_id='0'):
+def find_directories(api_service, object_id='0'):
     """
     Send a 'Browse' request for the top level directory. We will print out the
     top level containers that we observer. I've limited the count to 10.
@@ -190,6 +192,8 @@ def find_directories(p_url, p_service, object_id='0'):
     @param p_url the url to send the SOAPAction to
     @param p_service the service in charge of this control URI
     """
+    p_url = api_service['cd_ctr']
+    p_service = api_service['cd_service']
     result = []
     payload = (
         f'''
@@ -214,13 +218,12 @@ def find_directories(p_url, p_service, object_id='0'):
 
     resp = requests.post(p_url, data=payload, headers=soap_action_header)
     if resp.status_code != 200:
-        print('\t\tRequest failed with status: %d' % resp.status_code)
-        return
+        raise UpnpError(msg=f'Request failed with status: {resp.status_code}')
 
     xml_root = ElementTree.fromstring(resp.text)
     containers = xml_root.find(".//*Result").text
     if not containers:
-        return
+        return result
 
     xml_root = ElementTree.fromstring(containers)
     containers = xml_root.findall("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}container")
@@ -256,8 +259,7 @@ def find_items(p_url, p_service, object_id):
 
     resp = requests.post(p_url, data=payload, headers=soap_action_header)
     if resp.status_code != 200:
-        print('\t\tRequest failed with status: %d' % resp.status_code)
-        return result
+        raise UpnpError(msg=f'Request failed with status: {resp.status_code}')
 
     xml_root = ElementTree.fromstring(resp.text)
     containers = xml_root.find(".//*Result").text

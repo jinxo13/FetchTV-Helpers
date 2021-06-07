@@ -1,6 +1,7 @@
+import os
 import unittest
 import fetchtv_upnp as fetchtv
-from mock import Mock
+from mock import Mock, patch
 
 OPTION_IP = '--ip'
 OPTION_PORT = '--port'
@@ -9,15 +10,17 @@ OPTION_FOLDER = '--folder'
 OPTION_TITLE = '--title'
 OPTION_EXCLUDE = '--exclude'
 OPTION_SAVE = '--save'
+OPTION_JSON = '--json'
 
 CMD_RECORDINGS = '--recordings'
+CMD_IS_RECORDING = '--isrecording'
 CMD_INFO = '--info'
 CMD_SHOWS = '--shows'
 CMD_HELP = '--help'
 
 
 # Local settings to test
-# Change these o valid settings to test local integration
+# Change these to valid settings to test local integration
 SAVE_FOLDER = 'c:\\temp'
 
 FETCHTV_IP = '192.168.1.147'
@@ -35,7 +38,9 @@ class TestUpnp(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.fetch_server = fetchtv.discover_fetch(ip=FETCHTV_IP, port=FETCHTV_PORT)
+        json_files = SAVE_FOLDER + os.path.sep + fetchtv.SAVE_FILE
+        if os.path.exists(json_files):
+            os.remove(json_files)
 
     @staticmethod
     def get_server_url():
@@ -89,6 +94,12 @@ class TestUpnp(unittest.TestCase):
     def test_cmdline_recording_info(self):
         fetchtv.main([VAL_IP, VAL_PORT, CMD_RECORDINGS])
 
+    def test_cmdline_recording_info_json(self):
+        fetchtv.main([VAL_IP, VAL_PORT, CMD_RECORDINGS, OPTION_JSON])
+
+    def test_cmdline_anything_recording(self):
+        fetchtv.main([VAL_IP, VAL_PORT, CMD_IS_RECORDING, OPTION_JSON])
+
     def test_cmdline_shows_info(self):
         fetchtv.main([VAL_IP, VAL_PORT, CMD_SHOWS])
 
@@ -105,23 +116,24 @@ class TestUpnp(unittest.TestCase):
                       f'{OPTION_FOLDER}="{SHOW_ONE}"', f'{OPTION_TITLE}="{SHOW_ONE_EP_ONE}"'])
 
     def test_cmdline_save(self):
-        fetchtv.download_file = Mock()  # Don't save any files
-        fetchtv.main(
-            [VAL_IP, VAL_PORT, CMD_RECORDINGS, f'{OPTION_SAVE}={SAVE_FOLDER}'])
+        with patch('fetchtv_upnp.download_file', Mock()):
+            fetchtv.main(
+                [VAL_IP, VAL_PORT, CMD_RECORDINGS, f'{OPTION_SAVE}={SAVE_FOLDER}'])
 
     def test_cmdline_show_save(self):
-        fetchtv.download_file = Mock()  # Don't save any files
-        fetchtv.main([VAL_IP, VAL_PORT, f'{OPTION_FOLDER}="{SHOW_TWO}"',
-                      CMD_RECORDINGS, f'{OPTION_SAVE}={SAVE_FOLDER}'])
+        with patch('fetchtv_upnp.download_file', Mock()):
+            fetchtv.main([VAL_IP, VAL_PORT, f'{OPTION_FOLDER}="{SHOW_TWO}"',
+                          CMD_RECORDINGS, f'{OPTION_SAVE}={SAVE_FOLDER}'])
 
     def test_cmdline_show_save_all(self):
-        fetchtv.download_file = Mock()  # Don't save any files
-        fetchtv.main([VAL_IP, VAL_PORT, f'{OPTION_FOLDER}="{SHOW_TWO}"',
-                      CMD_RECORDINGS, OPTION_OVERWRITE, f'{OPTION_SAVE}={SAVE_FOLDER}'])
+        with patch('fetchtv_upnp.download_file', Mock()):
+            fetchtv.main([VAL_IP, VAL_PORT, f'{OPTION_FOLDER}="{SHOW_TWO}"',
+                          CMD_RECORDINGS, OPTION_OVERWRITE, f'{OPTION_SAVE}={SAVE_FOLDER}'])
 
     def test_get_shows_episodes(self):
+        fetch_server = fetchtv.discover_fetch(FETCHTV_IP, FETCHTV_PORT)
         results = fetchtv.get_fetch_recordings(
-            self.fetch_server,
+            fetch_server,
             fetchtv.Options([VAL_IP, VAL_PORT,
                              f'{OPTION_FOLDER}="{SHOW_ONE}, {SHOW_TWO}"',
                              f'{OPTION_TITLE}="{SHOW_ONE_EP_ONE}, {SHOW_ONE_EP_TWO}"',
@@ -140,18 +152,19 @@ class TestUpnp(unittest.TestCase):
 
     def test_download_shows_episodes(self):
         self.calls = 0
-        fetchtv.download_file = Mock()  # Don't save any files
-        fetchtv.main([VAL_IP, VAL_PORT,
-                      f'{OPTION_FOLDER}="{SHOW_ONE}, {SHOW_TWO}"',
-                      f'{OPTION_TITLE}="{SHOW_ONE_EP_ONE}, {SHOW_ONE_EP_TWO}"', CMD_RECORDINGS, OPTION_OVERWRITE, f'{OPTION_SAVE}="{SAVE_FOLDER}"'])
-        self.assertEqual(2, fetchtv.download_file.call_count)
+        with patch('fetchtv_upnp.download_file', Mock()):
+            fetchtv.main([VAL_IP, VAL_PORT,
+                          f'{OPTION_FOLDER}="{SHOW_ONE}, {SHOW_TWO}"',
+                          f'{OPTION_TITLE}="{SHOW_ONE_EP_ONE}, {SHOW_ONE_EP_TWO}"', CMD_RECORDINGS, OPTION_OVERWRITE, f'{OPTION_SAVE}="{SAVE_FOLDER}"'])
+            self.assertEqual(2, fetchtv.download_file.call_count)
 
     def test_get_episode(self):
-        fetchtv.download_file = Mock()  # Don't save any files
-        results = fetchtv.get_fetch_recordings(self.fetch_server, fetchtv.Options(
-            [VAL_IP, VAL_PORT,
-             f'{OPTION_FOLDER}="{SHOW_ONE}"',
-             f'{OPTION_TITLE}="{SHOW_ONE_EP_TWO}"', CMD_RECORDINGS, OPTION_OVERWRITE, f'{OPTION_SAVE}="{SAVE_FOLDER}"']))
+        fetch_server = fetchtv.discover_fetch(FETCHTV_IP, FETCHTV_PORT)
+        with patch('fetchtv_upnp.download_file', Mock()):
+            results = fetchtv.get_fetch_recordings(fetch_server, fetchtv.Options(
+                [VAL_IP, VAL_PORT,
+                 f'{OPTION_FOLDER}="{SHOW_ONE}"',
+                 f'{OPTION_TITLE}="{SHOW_ONE_EP_TWO}"', CMD_RECORDINGS, OPTION_OVERWRITE, f'{OPTION_SAVE}="{SAVE_FOLDER}"']))
 
         # Contains 1 show
         self.assertTrue(

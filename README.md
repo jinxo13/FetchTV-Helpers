@@ -35,8 +35,14 @@ Install the required dependencies.
         --> List all available recorded shows (doesn't include episodes)
         fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --shows
 
-        --> List all available recorded recordings (all shows and episodes)
-        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --recrdings
+        --> List only recordings that haven't been saved
+        fetchtv_upnp.py --recordings --new --ip=192.168.1.10 --port=49152
+
+        --> Return responses as JSON
+        fetchtv_upnp.py --recordings --json --ip=192.168.1.10 --port=49152
+
+        --> List all available recorded items (all shows and episodes)
+        fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152
 
         --> Save any new recordings to C:\\Temp
         fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --save="C:\\temp"
@@ -53,11 +59,16 @@ Install the required dependencies.
         --> Save episode containing 'S4 E12' or 'S4 E13' for the show 2 Broke Girls to C:\\Temp
         fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --overwrite --folder="2 Broke Girls" --title="S4 E12, S4 E13" --save="C:\\temp"
 
+        --> List anything currently recrding 
+        fetchtv_upnp.py --isrecording --ip=192.168.1.10 --port=49152
+
         Commands:
-        --help       --> Display this help
-        --info       --> Attempts auto-discovery and returns the Fetch Servers details
-        --recordings --> List or save recordings
-        --shows      --> List the names of shows with available recordings
+        --help        --> Display this help
+        --info        --> Attempts auto-discovery and returns the Fetch Servers details
+        --recordings  --> List or save recordings
+        --shows       --> List the names of shows with available recordings
+        --isrecording --> List any items that are currently recording. If no filtering is specified this will scan all
+                          items on the Fetch server so it can take some time
 
         Options:
         --ip=<ip_address>             --> Specify the IP Address of the Fetch Server, if auto-discovery fails
@@ -67,4 +78,5 @@ Install the required dependencies.
         --folder="<text>[,<text>]"    --> Only return recordings where the folder contains the specified text
         --exclude="<text>[,<text>]"   --> Don't download folders containing the specified text
         --title="<text>[,<text>]"     --> Only return recordings where the item contains the specified text
+        --json                        --> Output show/recording results in JSON, ignored if save option is specified
 

@@ -131,3 +131,6 @@ dmypy.json
 # Pyre type checker
 .pyre/
 /venv2.7/
+/sonar-project.properties
+/.scannerwork/report-task.txt
+/.scannerwork/.sonar_lock
