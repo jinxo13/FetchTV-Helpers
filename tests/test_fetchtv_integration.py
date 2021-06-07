@@ -130,6 +130,11 @@ class TestUpnp(unittest.TestCase):
             fetchtv.main([VAL_IP, VAL_PORT, f'{OPTION_FOLDER}="{SHOW_TWO}"',
                           CMD_RECORDINGS, OPTION_OVERWRITE, f'{OPTION_SAVE}={SAVE_FOLDER}'])
 
+    def test_cmdline_show_save_all_json(self):
+        with patch('fetchtv_upnp.download_file', Mock()):
+            fetchtv.main([VAL_IP, VAL_PORT, f'{OPTION_FOLDER}="{SHOW_TWO}"',
+                          CMD_RECORDINGS, OPTION_JSON, OPTION_OVERWRITE, f'{OPTION_SAVE}={SAVE_FOLDER}'])
+
     def test_get_shows_episodes(self):
         fetch_server = fetchtv.discover_fetch(FETCHTV_IP, FETCHTV_PORT)
         results = fetchtv.get_fetch_recordings(

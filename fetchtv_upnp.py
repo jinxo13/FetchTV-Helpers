@@ -69,7 +69,6 @@ class Options:
         self.set_options(argv)
 
         if self.save:
-            self.__dict['json'] = False  # No JSON output allowed when saving
             self.__dict['save'] = self.save.rstrip(os.path.sep)
         Options.INSTANCE = self
 
@@ -167,7 +166,7 @@ def create_valid_filename(filename):
     return result[:MAX_FILENAME]
 
 
-def download_file(item, filename):
+def download_file(item, filename, json_result):
     """
     Download the url contents to a file
     """
@@ -176,7 +175,9 @@ def download_file(item, filename):
         r.raise_for_status()
         total_length = int(r.headers.get('content-length'))
         if total_length == MAX_OCTET:
-            print_warning('Skipping item it\'s currently recording', level=2)
+            msg = 'Skipping item it\'s currently recording'
+            print_warning(msg, level=2)
+            json_result['warning'] = msg
             return False
 
         try:
@@ -186,11 +187,15 @@ def download_file(item, filename):
                         f.write(chunk)
 
         except FileExistsError:
-            print_warning('Already writing (lock file exists) skipping', level=2)
+            msg = 'Already writing (lock file exists) skipping'
+            print_warning(msg, level=2)
+            json_result['warning'] = msg
             return False
 
         except IOError as err:
-            print_error('Error writing file: %s' % err.msg, level=2)
+            msg = 'Error writing file: %s' % err.msg
+            print_error(msg, level=2)
+            json_result['error'] = msg
             return False
 
         if os.path.exists(filename):
@@ -330,7 +335,7 @@ def show_help():
         --folder="<text>[,<text>]"    --> Only return recordings where the folder contains the specified text
         --exclude="<text>[,<text>]"   --> Don't download folders containing the specified text
         --title="<text>[,<text>]"     --> Only return recordings where the item contains the specified text
-        --json                        --> Output show/recording results in JSON, ignored if save option is specified
+        --json                        --> Output show/recording/save results in JSON
     ''')
 
 
@@ -341,6 +346,7 @@ def save_recordings(recordings, options: Options):
     some_to_record = False
     path = options.save
     saved_files = SavedFiles.load(path)
+    json_result = []
     for show in recordings:
         for item in show['items']:
             if options.overwrite or not saved_files.contains(item):
@@ -350,17 +356,22 @@ def save_recordings(recordings, options: Options):
                     os.makedirs(directory)
                 file_path = directory + os.path.sep + create_valid_filename(item.title) + '.mpeg'
 
+                result = {'item': create_item(item), 'recorded': False}
+                json_result.append(result)
                 # Check if already writing
                 lock_file = file_path + CONST_LOCK
                 if os.path.exists(lock_file):
-                    print('\t -- Already writing (lock file exists) skipping: [%s]' % item.title)
+                    msg = 'Already writing (lock file exists) skipping: [%s]' % item.title
+                    print_item(msg)
+                    result['warning'] = msg
                     continue
 
-                if download_file(item, file_path):
+                if download_file(item, file_path, result):
+                    result['recorded'] = True
                     saved_files.add_file(item)
-
     if not some_to_record:
         print('\t -- There is nothing new to record')
+    return json_result
 
 
 def print_item(param, level=1):
@@ -378,6 +389,18 @@ def print_error(param, level=2):
     print(f'{space} -- [!] {param}')
 
 
+def create_item(item):
+    item_type = 'episode' if re.match('^S\\d+ E\\d+', item.title) else 'movie'
+    return {
+        'id': item.id,
+        'title': item.title,
+        'type': item_type,
+        'duration': item.duration,
+        'size': item.size,
+        'description': item.description
+    }
+
+
 def print_recordings(recordings):
     if Options.INSTANCE and not Options.INSTANCE.json:
         print_heading('List Recordings')
@@ -393,15 +416,7 @@ def print_recordings(recordings):
             items = []
             output.append({'id': recording['id'], 'title': recording['title'], 'items': items})
             for item in recording['items']:
-                item_type = 'episode' if re.match('^S\\d+ E\\d+', item.title) else 'movie'
-                items.append({
-                    'id': item.id,
-                    'title': item.title,
-                    'type': item_type,
-                    'duration': item.duration,
-                    'size': item.size,
-                    'description': item.description
-                })
+                items.append(create_item(item))
         output = json.dumps(output, indent=2, sort_keys=False)
         print(output)
         return output
@@ -435,7 +450,10 @@ def main(argv):
             print_recordings(recordings)
         else:
             print_heading('Saving Recordings')
-            save_recordings(recordings, options)
+            json_result = save_recordings(recordings, options)
+            if Options.INSTANCE and Options.INSTANCE.json:
+                output = json.dumps(json_result, indent=2, sort_keys=False)
+                print(output)
     print_heading('Done', datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
 

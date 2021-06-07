@@ -59,7 +59,7 @@ Install the required dependencies.
         --> Save episode containing 'S4 E12' or 'S4 E13' for the show 2 Broke Girls to C:\\Temp
         fetchtv_upnp.py --recordings --ip=192.168.1.10 --port=49152 --overwrite --folder="2 Broke Girls" --title="S4 E12, S4 E13" --save="C:\\temp"
 
-        --> List anything currently recrding 
+        --> List anything currently recording 
         fetchtv_upnp.py --isrecording --ip=192.168.1.10 --port=49152
 
         Commands:
@@ -78,5 +78,5 @@ Install the required dependencies.
         --folder="<text>[,<text>]"    --> Only return recordings where the folder contains the specified text
         --exclude="<text>[,<text>]"   --> Don't download folders containing the specified text
         --title="<text>[,<text>]"     --> Only return recordings where the item contains the specified text
-        --json                        --> Output show/recording results in JSON, ignored if save option is specified
+        --json                        --> Output show/recording/save results in JSON
 

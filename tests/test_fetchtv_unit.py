@@ -290,13 +290,35 @@ class TestDownloadFile(unittest.TestCase):
         with patch('requests.get', mock_get):
             with patch('fetchtv_upnp.open', mock_file):
                 with patch('fetchtv_upnp.os.rename', Mock()):
-                    self.assertTrue(fetchtv.download_file(mock_location, temp_file))
+                    self.assertTrue(fetchtv.download_file(mock_location, temp_file, {}))
 
         # Test download skips when item is recording
         with patch('requests.get', mock_get_recording):
             with patch('fetchtv_upnp.open', mock_file):
                 with patch('fetchtv_upnp.os.rename', Mock()):
-                    self.assertFalse(fetchtv.download_file(mock_location, temp_file))
+                    self.assertFalse(fetchtv.download_file(mock_location, temp_file, {}))
+
+    def test_save_item_json(self):
+        # Test download works when item is not recording
+
+        temp_dir = tempfile.gettempdir()
+        temp_file = f'{temp_dir}{os.path.sep}test.txt'
+
+        mock_file = mock_open(read_data='xxx')
+        mock_location = Mock()
+        mock_location.url = URL_DUMMY
+        with patch('requests.get', mock_get):
+            with patch('fetchtv_upnp.open', mock_file):
+                with patch('fetchtv_upnp.os.rename', Mock()):
+                    self.assertTrue(fetchtv.download_file(mock_location, temp_file, {}))
+
+        # Test download skips when item is recording
+        with patch('requests.get', mock_get_recording):
+            with patch('fetchtv_upnp.open', mock_file):
+                with patch('fetchtv_upnp.os.rename', Mock()):
+                    result = {}
+                    self.assertFalse(fetchtv.download_file(mock_location, temp_file, result))
+                    self.assertTrue('warning' in result.keys())
 
     def test_lock_file_writing(self):
         temp_dir = tempfile.gettempdir()
@@ -307,7 +329,7 @@ class TestDownloadFile(unittest.TestCase):
             mock_location = Mock()
             mock_location.url = URL_DUMMY
             with patch('requests.get', mock_get):
-                self.assertFalse(fetchtv.download_file(mock_location, temp_file))
+                self.assertFalse(fetchtv.download_file(mock_location, temp_file, {}))
         finally:
             os.remove(f'{temp_file}.lock')
 
