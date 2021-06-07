@@ -364,22 +364,16 @@ def save_recordings(recordings, options: Options):
 
 
 def print_item(param, level=1):
-    if Options.INSTANCE and Options.INSTANCE.json:
-        return
     space = '\t' * level
     print(f'{space} -- {param}')
 
 
 def print_warning(param, level=2):
-    if Options.INSTANCE and Options.INSTANCE.json:
-        return
     space = '\t' * level
     print(f'{space} -- [!] {param}')
 
 
 def print_error(param, level=2):
-    if Options.INSTANCE and Options.INSTANCE.json:
-        return
     space = '\t' * level
     print(f'{space} -- [!] {param}')
 

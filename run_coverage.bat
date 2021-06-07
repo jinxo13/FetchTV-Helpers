@@ -1,3 +1,3 @@
-coverage run --omit */venv/* --omit */tests/* -m unittest discover
+coverage run --omit */venv/*,*/tests/* -m unittest discover
 coverage xml
 coverage html
