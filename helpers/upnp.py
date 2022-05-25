@@ -51,8 +51,7 @@ class Item:
         self.id = get_xml_attr(xml, 'id', NO_NUMBER_DEFAULT)
         self.parent_id = get_xml_attr(xml, 'parentID', NO_NUMBER_DEFAULT)
         self.description = xml.find("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}description")
-        if self.description is not None and self.description.text:
-            self.description = self.description.text
+        self.description = self.description.text if self.description is not None else ''
         res = xml.find("./{urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/}res")
         self.url = res.text
         self.size = int(get_xml_attr(res, 'size', NO_NUMBER_DEFAULT))

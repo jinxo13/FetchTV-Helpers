@@ -271,8 +271,33 @@ class TestGetFetchRecordings(unittest.TestCase):
         self.assertEqual(2, len(results[0]['items']))
 
 
+@patch('requests.get', mock_get)
+@patch('requests.post', mock_post)
 class TestSaveRecordings(unittest.TestCase):
-    pass
+
+    def test_already_saving_recording(self):
+        fetch_server = Mock()
+        fetch_server.url = URL_DUMMY
+        temp_dir = tempfile.gettempdir()
+        options = fetchtv.Options([CMD_RECORDINGS,
+                                   f'{OPTION_FOLDER}="{SHOW_ONE}"',
+                                   f'{OPTION_TITLE}="{SHOW_ONE_EP_ONE}"',
+                                  f'{OPTION_SAVE}="{temp_dir}"'])
+        results = fetchtv.get_fetch_recordings(fetch_server, options)
+        show_folder = fetchtv.create_valid_filename(results[0]['items'][0].parent_name)
+        filename = fetchtv.create_valid_filename(results[0]['items'][0].title)
+        lock_file = f'{temp_dir}{os.path.sep}{show_folder}{os.path.sep}{filename}.mpeg.lock'
+
+        try:
+            os.mkdir(temp_dir + os.path.sep + show_folder)
+            with open(lock_file, 'x') as f:
+                f.write('.')
+            json_result = fetchtv.save_recordings(results, options)
+            self.assertTrue(json_result[0]['warning'].startswith('Already writing'))
+            self.assertFalse(json_result[0]['recorded'])
+        finally:
+            os.remove(lock_file)
+            os.rmdir(temp_dir + os.path.sep + show_folder)
 
 
 @patch('requests.get', mock_get)
@@ -310,7 +335,8 @@ class TestDownloadFile(unittest.TestCase):
         with patch('requests.get', mock_get):
             with patch('fetchtv_upnp.open', mock_file):
                 with patch('fetchtv_upnp.os.rename', Mock()):
-                    self.assertTrue(fetchtv.download_file(mock_location, temp_file, {}))
+                    result = {}
+                    self.assertTrue(fetchtv.download_file(mock_location, temp_file, result))
 
         # Test download skips when item is recording
         with patch('requests.get', mock_get_recording):
@@ -332,6 +358,19 @@ class TestDownloadFile(unittest.TestCase):
                 self.assertFalse(fetchtv.download_file(mock_location, temp_file, {}))
         finally:
             os.remove(f'{temp_file}.lock')
+
+    def test_io_error(self):
+        temp_dir = tempfile.gettempdir()
+        temp_file = f'{temp_dir}{os.path.sep}test.txt'
+        mock_file = mock_open(read_data='xxx')
+        mock_file.side_effect = IOError('An IO error')
+        mock_location = Mock()
+        mock_location.url = URL_DUMMY
+        with patch('fetchtv_upnp.open', mock_file):
+            with patch('requests.get', mock_get):
+                json_result = {}
+                self.assertFalse(fetchtv.download_file(mock_location, temp_file, json_result))
+                self.assertTrue(json_result['error'].find('An IO error') != -1)
 
 
 class TestUtils(unittest.TestCase):

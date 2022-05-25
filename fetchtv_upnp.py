@@ -193,13 +193,11 @@ def download_file(item, filename, json_result):
             return False
 
         except IOError as err:
-            msg = 'Error writing file: %s' % err.msg
+            msg = f'Error writing file: {err}'
             print_error(msg, level=2)
             json_result['error'] = msg
             return False
 
-        if os.path.exists(filename):
-            os.remove(filename)
         os.rename(filename + CONST_LOCK, filename)
         return True
 
@@ -280,7 +278,7 @@ def discover_fetch(ip=False, port=FETCHTV_PORT):
         result = [location for location in locations if location.manufacturerURL == 'http://www.fetch.com/']
         if len(result) == 0:
             print_heading('Discovery failed', 'ERROR: Unable to locate Fetch UPNP service')
-            return False
+            return None
         print_heading('Discovery successful', result[0].url)
     except upnp.UpnpError as err:
         print_error(err)
@@ -329,7 +327,7 @@ def show_help():
 
         Options:
         --ip=<ip_address>             --> Specify the IP Address of the Fetch Server, if auto-discovery fails
-        --port=<port>                 --> Specify yhe port of the Fetch Server, if auto-discovery fails, normally 49152
+        --port=<port>                 --> Specify the port of the Fetch Server, if auto-discovery fails, normally 49152
         --overwrite                   --> Will save and overwrite any existing files
         --save=<path>                 --> Save recordings to the specified path
         --folder="<text>[,<text>]"    --> Only return recordings where the folder contains the specified text

@@ -1,4 +1,5 @@
 import os
+import tempfile
 import unittest
 import fetchtv_upnp as fetchtv
 from mock import Mock, patch
@@ -21,7 +22,7 @@ CMD_HELP = '--help'
 
 # Local settings to test
 # Change these to valid settings to test local integration
-SAVE_FOLDER = 'c:\\temp'
+SAVE_FOLDER = tempfile.gettempdir()
 
 FETCHTV_IP = '192.168.1.147'
 FETCHTV_PORT = 49152
@@ -33,6 +34,7 @@ SHOW_TWO = 'Lego Masters'
 
 VAL_IP = f'{OPTION_IP}={FETCHTV_IP}'
 VAL_PORT = f'{OPTION_PORT}={FETCHTV_PORT}'
+
 
 class TestUpnp(unittest.TestCase):
 
@@ -56,13 +58,16 @@ class TestUpnp(unittest.TestCase):
         self.assertFalse(fetch_server)
 
         # Mock auto discovery
-        stash = fetchtv.upnp.discover_pnp_locations
-        fetchtv.upnp.discover_pnp_locations = Mock(return_value=[self.get_server_url()])
+        with patch('helpers.upnp.discover_pnp_locations', Mock(return_value=[self.get_server_url()])):
+            fetch_server = fetchtv.discover_fetch()
+            self.assertEqual(fetch_server.url, self.get_server_url())
+            fetchtv.upnp.discover_pnp_locations.assert_called_once()
 
-        fetch_server = fetchtv.discover_fetch()
-        self.assertEqual(fetch_server.url, self.get_server_url())
-        fetchtv.upnp.discover_pnp_locations.assert_called_once()
-        fetchtv.upnp.discover_pnp_locations = stash
+        # Mock auto discovery
+        with patch('helpers.upnp.discover_pnp_locations', Mock(return_value=[])):
+            fetch_server = fetchtv.discover_fetch()
+            self.assertIsNone(fetch_server)
+            fetchtv.upnp.discover_pnp_locations.assert_called_once()
 
         # Manual server
         fetch_server = fetchtv.discover_fetch(ip=FETCHTV_IP, port=FETCHTV_PORT)
@@ -146,6 +151,7 @@ class TestUpnp(unittest.TestCase):
                              OPTION_OVERWRITE,
                              f'{OPTION_SAVE}="{SAVE_FOLDER}"']))
 
+        fetchtv.print_recordings(results)
         # Contains both shows
         self.assertTrue(len(list(result for result in results if result['title'] in [SHOW_ONE, SHOW_TWO])) == 2)
 
