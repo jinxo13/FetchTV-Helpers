@@ -8,6 +8,9 @@ from datetime import datetime
 import jsonpickle
 from pprint import pprint
 from clint.textui import progress
+from requests.exceptions import ChunkedEncodingError
+from urllib3.exceptions import IncompleteRead
+
 import helpers.upnp as upnp
 
 try:
@@ -191,7 +194,16 @@ def download_file(item, filename, json_result):
             print_warning(msg, level=2)
             json_result['warning'] = msg
             return False
+        except ChunkedEncodingError as err:
+            if err.args:
+                try:
+                    if isinstance(err.args[0].args[1], IncompleteRead):
+                        msg = f'Final read was short; FetchTV sets the wrong Content-Length header. File should be fine'
+                except IndexError:
+                    msg = f'Chunked encoding error occurred. Content length was {total_length}. Error was: {err}'
 
+            print_warning(msg, level=2)
+            json_result['warning'] = msg
         except IOError as err:
             msg = f'Error writing file: {err}'
             print_error(msg, level=2)
