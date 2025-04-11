@@ -9,6 +9,8 @@ from datetime import datetime
 import jsonpickle
 from pprint import pprint
 from clint.textui import progress
+from urllib3.exceptions import IncompleteRead
+
 import helpers.upnp as upnp
 
 try:
@@ -196,17 +198,27 @@ def download_file(item, filename, json_result):
             return False
 
         except IOError as err:
-            # Handle incomplete read
-            content_length = int(r.headers.get('content-length'))
-            actual_length = int(r.raw.tell())
-            if content_length != actual_length:
-                msg = f'Content header size {total_length}, doesn\'t match actual size {actual_length}, continuing...'
-                print_warning(msg, level=2)
-            else:
+            handled_error = False
+            try:
+                if isinstance(err.args[0].args[1], IncompleteRead):
+                    # Check if incomplete read is likely due to a bad content-length in the media stream
+                    content_length = int(r.headers.get('content-length'))
+                    actual_length = int(r.raw.tell())
+                    if content_length != actual_length:
+                        msg = f'Handling known issue where content header size {total_length}, doesn\'t match actual size {actual_length}, continuing...'
+                        print_warning(msg, level=2)
+                        json_result['warning'] = msg
+                        handled_error = True
+            except (IndexError, AttributeError):
+                # Some other error occurred
+                pass
+
+            if not handled_error:
                 msg = f'Error writing file: {err}'
                 print_error(msg, level=2)
                 json_result['error'] = msg
                 return False
+
         os.rename(filename + CONST_LOCK, filename)
         return True
 
