@@ -27,10 +27,10 @@ SAVE_FOLDER = tempfile.gettempdir()
 FETCHTV_IP = '192.168.1.147'
 FETCHTV_PORT = 49152
 
-SHOW_ONE = '2 Broke Girls'
-SHOW_ONE_EP_ONE = 'S4 E12'
-SHOW_ONE_EP_TWO = 'S4 E13'
-SHOW_TWO = 'Lego Masters'
+SHOW_ONE = 'MasterChef Australia'
+SHOW_ONE_EP_ONE = 'S14 E30 - Episode'
+SHOW_ONE_EP_TWO = 'S14 E31 - Episode'
+SHOW_TWO = 'Have You Been Paying Attention?'
 
 VAL_IP = f'{OPTION_IP}={FETCHTV_IP}'
 VAL_PORT = f'{OPTION_PORT}={FETCHTV_PORT}'
@@ -153,7 +153,7 @@ class TestUpnp(unittest.TestCase):
 
         fetchtv.print_recordings(results)
         # Contains both shows
-        self.assertTrue(len(list(result for result in results if result['title'] in [SHOW_ONE, SHOW_TWO])) == 2)
+        self.assertTrue(len(list(result for result in results if result['title'].lower() in [SHOW_ONE.lower(), SHOW_TWO.lower()])) == 2)
 
         # Contains both episodes
         items = list(result for result in results if result['title'] == SHOW_ONE)[0]['items']

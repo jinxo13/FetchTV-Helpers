@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import re
+
 import requests
 from datetime import datetime
 import jsonpickle
@@ -181,10 +182,12 @@ def download_file(item, filename, json_result):
             return False
 
         try:
+            bytes_written = 0
             with open(filename + CONST_LOCK, 'xb') as f:
                 for chunk in progress.bar(r.iter_content(chunk_size=8192), expected_size=(total_length / 8192) + 1):
                     if chunk:  # filter out keep-alive new chunks
                         f.write(chunk)
+                        bytes_written += len(chunk)
 
         except FileExistsError:
             msg = 'Already writing (lock file exists) skipping'
@@ -193,11 +196,17 @@ def download_file(item, filename, json_result):
             return False
 
         except IOError as err:
-            msg = f'Error writing file: {err}'
-            print_error(msg, level=2)
-            json_result['error'] = msg
-            return False
-
+            # Handle incomplete read
+            content_length = int(r.headers.get('content-length'))
+            actual_length = int(r.raw.tell())
+            if content_length > actual_length:
+                msg = f'Content header size {total_length}, doesn\'t match actual size {actual_length}, continuing...'
+                print_warning(msg, level=2)
+            else:
+                msg = f'Error writing file: {err}'
+                print_error(msg, level=2)
+                json_result['error'] = msg
+                return False
         os.rename(filename + CONST_LOCK, filename)
         return True
 
