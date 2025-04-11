@@ -199,7 +199,7 @@ def download_file(item, filename, json_result):
             # Handle incomplete read
             content_length = int(r.headers.get('content-length'))
             actual_length = int(r.raw.tell())
-            if content_length > actual_length:
+            if content_length != actual_length:
                 msg = f'Content header size {total_length}, doesn\'t match actual size {actual_length}, continuing...'
                 print_warning(msg, level=2)
             else:
