@@ -1,6 +1,9 @@
 import os
 import tempfile
 import unittest
+from os.path import join, dirname
+from dotenv import load_dotenv
+
 import fetchtv_upnp as fetchtv
 from mock import Mock, patch
 
@@ -24,16 +27,16 @@ CMD_HELP = '--help'
 # Change these to valid settings to test local integration
 SAVE_FOLDER = tempfile.gettempdir()
 
-FETCHTV_IP = '192.168.1.147'
-FETCHTV_PORT = 49152
+dotenv_path = join(dirname(__file__), '.env')
+load_dotenv(dotenv_path)
 
-SHOW_ONE = 'MasterChef Australia'
-SHOW_ONE_EP_ONE = 'S14 E30 - Episode'
-SHOW_ONE_EP_TWO = 'S14 E31 - Episode'
-SHOW_TWO = 'Have You Been Paying Attention?'
+FETCHTV_IP = os.getenv("FETCHTV_IP")
+FETCHTV_PORT = int(os.getenv("FETCHTV_PORT"))
 
 VAL_IP = f'{OPTION_IP}={FETCHTV_IP}'
 VAL_PORT = f'{OPTION_PORT}={FETCHTV_PORT}'
+
+SHOW_INFO = {"SHOW_ONE": "", "SHOW_TWO": "", "SHOW_ONE_EP_ONE": "", "SHOW_ONE_EP_TWO": ""}
 
 
 class TestUpnp(unittest.TestCase):
@@ -43,6 +46,18 @@ class TestUpnp(unittest.TestCase):
         json_files = SAVE_FOLDER + os.path.sep + fetchtv.SAVE_FILE
         if os.path.exists(json_files):
             os.remove(json_files)
+        fetch_server = fetchtv.discover_fetch(ip=FETCHTV_IP, port=FETCHTV_PORT)
+        recordings = fetchtv.get_fetch_recordings(fetch_server, fetchtv.Options(''))
+
+        for recording in recordings:
+            if len(recording['items']) >= 2 and recording['items'][0].title != recording['items'][1].title:
+                SHOW_INFO["SHOW_ONE"] = recording['title']
+                SHOW_INFO["SHOW_ONE_EP_ONE"] = recording['items'][0].title
+                SHOW_INFO["SHOW_ONE_EP_TWO"] = recording['items'][1].title
+            else:
+                SHOW_INFO["SHOW_TWO"] = recording['title']
+            if SHOW_INFO["SHOW_ONE"] != "" and SHOW_INFO["SHOW_TWO"] != "":
+                break
 
     @staticmethod
     def get_server_url():
@@ -73,8 +88,8 @@ class TestUpnp(unittest.TestCase):
         fetch_server = fetchtv.discover_fetch(ip=FETCHTV_IP, port=FETCHTV_PORT)
         self.assertTrue(fetch_server)
 
-        # Default port
-        fetch_server = fetchtv.discover_fetch(ip=FETCHTV_IP)
+        # Default
+        fetch_server = fetchtv.discover_fetch()
         self.assertTrue(fetch_server)
 
         # Bad port
@@ -110,15 +125,15 @@ class TestUpnp(unittest.TestCase):
 
     def test_cmdline_recording_info_show(self):
         fetchtv.main([VAL_IP, VAL_PORT, CMD_RECORDINGS,
-                      f'{OPTION_FOLDER}="{SHOW_ONE}"'])
+                      f'{OPTION_FOLDER}="{SHOW_INFO["SHOW_ONE"]}"'])
 
     def test_cmdline_recording_info_exclude(self):
         fetchtv.main([VAL_IP, VAL_PORT, CMD_RECORDINGS,
-                      f'{OPTION_EXCLUDE}="{SHOW_ONE}"'])
+                      f'{OPTION_EXCLUDE}="{SHOW_INFO["SHOW_ONE"]}"'])
 
     def test_cmdline_recording_episode(self):
         fetchtv.main([VAL_IP, VAL_PORT, CMD_RECORDINGS,
-                      f'{OPTION_FOLDER}="{SHOW_ONE}"', f'{OPTION_TITLE}="{SHOW_ONE_EP_ONE}"'])
+                      f'{OPTION_FOLDER}="{SHOW_INFO["SHOW_ONE"]}"', f'{OPTION_TITLE}="{SHOW_INFO["SHOW_ONE_EP_ONE"]}"'])
 
     def test_cmdline_save(self):
         with patch('fetchtv_upnp.download_file', Mock()):
@@ -127,17 +142,17 @@ class TestUpnp(unittest.TestCase):
 
     def test_cmdline_show_save(self):
         with patch('fetchtv_upnp.download_file', Mock()):
-            fetchtv.main([VAL_IP, VAL_PORT, f'{OPTION_FOLDER}="{SHOW_TWO}"',
+            fetchtv.main([VAL_IP, VAL_PORT, f'{OPTION_FOLDER}="{SHOW_INFO["SHOW_TWO"]}"',
                           CMD_RECORDINGS, f'{OPTION_SAVE}={SAVE_FOLDER}'])
 
     def test_cmdline_show_save_all(self):
         with patch('fetchtv_upnp.download_file', Mock()):
-            fetchtv.main([VAL_IP, VAL_PORT, f'{OPTION_FOLDER}="{SHOW_TWO}"',
+            fetchtv.main([VAL_IP, VAL_PORT, f'{OPTION_FOLDER}="{SHOW_INFO["SHOW_TWO"]}"',
                           CMD_RECORDINGS, OPTION_OVERWRITE, f'{OPTION_SAVE}={SAVE_FOLDER}'])
 
     def test_cmdline_show_save_all_json(self):
         with patch('fetchtv_upnp.download_file', Mock()):
-            fetchtv.main([VAL_IP, VAL_PORT, f'{OPTION_FOLDER}="{SHOW_TWO}"',
+            fetchtv.main([VAL_IP, VAL_PORT, f'{OPTION_FOLDER}="{SHOW_INFO["SHOW_TWO"]}"',
                           CMD_RECORDINGS, OPTION_JSON, OPTION_OVERWRITE, f'{OPTION_SAVE}={SAVE_FOLDER}'])
 
     def test_get_shows_episodes(self):
@@ -145,28 +160,28 @@ class TestUpnp(unittest.TestCase):
         results = fetchtv.get_fetch_recordings(
             fetch_server,
             fetchtv.Options([VAL_IP, VAL_PORT,
-                             f'{OPTION_FOLDER}="{SHOW_ONE}, {SHOW_TWO}"',
-                             f'{OPTION_TITLE}="{SHOW_ONE_EP_ONE}, {SHOW_ONE_EP_TWO}"',
+                             f'{OPTION_FOLDER}="{SHOW_INFO["SHOW_ONE"]}, {SHOW_INFO["SHOW_TWO"]}"',
+                             f'{OPTION_TITLE}="{SHOW_INFO["SHOW_ONE_EP_ONE"]}, {SHOW_INFO["SHOW_ONE_EP_TWO"]}"',
                              CMD_RECORDINGS,
                              OPTION_OVERWRITE,
                              f'{OPTION_SAVE}="{SAVE_FOLDER}"']))
 
         fetchtv.print_recordings(results)
         # Contains both shows
-        self.assertTrue(len(list(result for result in results if result['title'].lower() in [SHOW_ONE.lower(), SHOW_TWO.lower()])) == 2)
+        self.assertTrue(len(list(result for result in results if result['title'].lower() in [SHOW_INFO["SHOW_ONE"].lower(), SHOW_INFO["SHOW_TWO"].lower()])) == 2)
 
         # Contains both episodes
-        items = list(result for result in results if result['title'] == SHOW_ONE)[0]['items']
+        items = list(result for result in results if result['title'] == SHOW_INFO["SHOW_ONE"])[0]['items']
         self.assertTrue(len(items) == 2)
-        self.assertTrue(len(list(item for item in items if item.title.startswith(SHOW_ONE_EP_ONE))) == 1)
-        self.assertTrue(len(list(item for item in items if item.title.startswith(SHOW_ONE_EP_TWO))) == 1)
+        self.assertTrue(len(list(item for item in items if item.title.startswith(SHOW_INFO["SHOW_ONE_EP_ONE"]))) == 1)
+        self.assertTrue(len(list(item for item in items if item.title.startswith(SHOW_INFO["SHOW_ONE_EP_TWO"]))) == 1)
 
     def test_download_shows_episodes(self):
         self.calls = 0
         with patch('fetchtv_upnp.download_file', Mock()):
             fetchtv.main([VAL_IP, VAL_PORT,
-                          f'{OPTION_FOLDER}="{SHOW_ONE}, {SHOW_TWO}"',
-                          f'{OPTION_TITLE}="{SHOW_ONE_EP_ONE}, {SHOW_ONE_EP_TWO}"', CMD_RECORDINGS, OPTION_OVERWRITE, f'{OPTION_SAVE}="{SAVE_FOLDER}"'])
+                          f'{OPTION_FOLDER}="{SHOW_INFO["SHOW_ONE"]}, {SHOW_INFO["SHOW_TWO"]}"',
+                          f'{OPTION_TITLE}="{SHOW_INFO["SHOW_ONE_EP_ONE"]}, {SHOW_INFO["SHOW_ONE_EP_TWO"]}"', CMD_RECORDINGS, OPTION_OVERWRITE, f'{OPTION_SAVE}="{SAVE_FOLDER}"'])
             self.assertEqual(2, fetchtv.download_file.call_count)
 
     def test_get_episode(self):
@@ -174,14 +189,14 @@ class TestUpnp(unittest.TestCase):
         with patch('fetchtv_upnp.download_file', Mock()):
             results = fetchtv.get_fetch_recordings(fetch_server, fetchtv.Options(
                 [VAL_IP, VAL_PORT,
-                 f'{OPTION_FOLDER}="{SHOW_ONE}"',
-                 f'{OPTION_TITLE}="{SHOW_ONE_EP_TWO}"', CMD_RECORDINGS, OPTION_OVERWRITE, f'{OPTION_SAVE}="{SAVE_FOLDER}"']))
+                 f'{OPTION_FOLDER}="{SHOW_INFO["SHOW_ONE"]}"',
+                 f'{OPTION_TITLE}="{SHOW_INFO["SHOW_ONE_EP_TWO"]}"', CMD_RECORDINGS, OPTION_OVERWRITE, f'{OPTION_SAVE}="{SAVE_FOLDER}"']))
 
         # Contains 1 show
         self.assertTrue(
-            len(list(result for result in results if result['title'] in [SHOW_ONE])) == 1)
+            len(list(result for result in results if result['title'] in [SHOW_INFO["SHOW_ONE"]])) == 1)
 
         # Contains 1 episode
-        items = list(result for result in results if result['title'] == SHOW_ONE)[0]['items']
+        items = list(result for result in results if result['title'] == SHOW_INFO["SHOW_ONE"])[0]['items']
         self.assertTrue(len(items) == 1)
-        self.assertTrue(len(list(item for item in items if item.title.startswith(SHOW_ONE_EP_TWO))) == 1)
+        self.assertTrue(len(list(item for item in items if item.title.startswith(SHOW_INFO["SHOW_ONE_EP_TWO"]))) == 1)

@@ -290,22 +290,25 @@ def filter_recording_items(options, recordings):
     return results
 
 
-def discover_fetch(ip=False, port=FETCHTV_PORT):
+def discover_fetch(ip=False, port=False):
     print_heading('Starting Discovery')
+    found = False
     try:
         location_urls = upnp.discover_pnp_locations() if not ip else ['http://%s:%i/MediaServer.xml' % (ip, port)]
-        locations = upnp.parse_locations(location_urls)
-        # Find fetch
-        result = [location for location in locations if location.manufacturerURL == 'http://www.fetch.com/']
-        if len(result) == 0:
-            print_heading('Discovery failed', 'ERROR: Unable to locate Fetch UPNP service')
-            return None
-        print_heading('Discovery successful', result[0].url)
+        for location in location_urls:
+            try:
+                locations = upnp.parse_locations([location])
+                if locations[0].manufacturerURL == 'http://www.fetch.com/':
+                    print_heading('Discovery successful', locations[0].url)
+                    return locations[0]
+            except upnp.UpnpError:
+                # Bad location
+                pass
     except upnp.UpnpError as err:
         print_error(err)
-        return None
 
-    return result[0]
+    print_heading('Discovery failed', 'ERROR: Unable to locate Fetch UPNP service')
+    return None
 
 
 def show_help():
